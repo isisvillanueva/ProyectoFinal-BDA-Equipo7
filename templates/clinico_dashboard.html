@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Clínico | Sistema de Trazabilidad</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
+    <script defer src="{{ url_for('static', filename='js/script.js') }}"></script>
+</head>
+<body data-view="clinico">
+    <aside class="sidebar">
+        <div class="brand">
+            <h1>MedTrace</h1>
+            <p>Panel clínico</p>
+        </div>
+
+        <nav class="menu">
+            <a href="#resumen" class="active">Resumen</a>
+            <a href="#disponibles">Equipos disponibles</a>
+            <a href="#uso">Registrar uso</a>
+            <a href="#mantenimientos">Consultar mantenimiento</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <div>
+                <h2>Vista de Personal Clínico</h2>
+                <p>Consulta de disponibilidad, uso clínico y mantenimientos en modo lectura.</p>
+            </div>
+            <div class="topbar-actions">
+                <button class="btn btn-primary">Registrar uso clínico</button>
+            </div>
+        </header>
+
+        <section id="resumen" class="cards-grid">
+            <article class="stat-card">
+                <span class="label">Equipos disponibles</span>
+                <strong>42</strong>
+                <small>Listos para asignación inmediata</small>
+            </article>
+            <article class="stat-card">
+                <span class="label">En uso actualmente</span>
+                <strong>27</strong>
+                <small>Monitoreados por el sistema</small>
+            </article>
+            <article class="stat-card">
+                <span class="label">Mantenimiento activo</span>
+                <strong>6</strong>
+                <small>No usar hasta nueva validación</small>
+            </article>
+            <article class="stat-card">
+                <span class="label">Mis registros hoy</span>
+                <strong>5</strong>
+                <small>Uso clínico capturado</small>
+            </article>
+        </section>
+
+        <section id="disponibles" class="panel">
+            <div class="panel-header">
+                <div>
+                    <h3>Equipos disponibles</h3>
+                    <p>Consulta rápida de equipos listos para uso clínico.</p>
+                </div>
+                <div class="filters">
+                    <input type="text" id="clinicoSearch" placeholder="Buscar equipo o ubicación">
+                    <select id="clinicoTypeFilter">
+                        <option value="todos">Todos los tipos</option>
+                        <option value="Monitoreo">Monitoreo</option>
+                        <option value="Respiratorio">Respiratorio</option>
+                        <option value="Soporte">Soporte</option>
+                        <option value="Emergencia">Emergencia</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-wrap">
+                <table class="data-table" id="clinicoTable">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Equipo</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th>Ubicación</th>
+                            <th>Último mantenimiento</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr data-type="Monitoreo">
+                            <td>EQ-001</td>
+                            <td>Monitor de signos vitales</td>
+                            <td>Monitoreo</td>
+                            <td><span class="badge success">Disponible</span></td>
+                            <td>Habitación 203</td>
+                            <td>10/03/2026</td>
+                            <td><button class="btn btn-mini">Registrar uso</button></td>
+                        </tr>
+                        <tr data-type="Soporte">
+                            <td>EQ-014</td>
+                            <td>Bomba de infusión</td>
+                            <td>Soporte</td>
+                            <td><span class="badge info">En uso</span></td>
+                            <td>UCI 2</td>
+                            <td>02/03/2026</td>
+                            <td><button class="btn btn-mini muted">Ver detalle</button></td>
+                        </tr>
+                        <tr data-type="Emergencia">
+                            <td>EQ-035</td>
+                            <td>Desfibrilador</td>
+                            <td>Emergencia</td>
+                            <td><span class="badge success">Disponible</span></td>
+                            <td>Choque 1</td>
+                            <td>14/03/2026</td>
+                            <td><button class="btn btn-mini">Registrar uso</button></td>
+                        </tr>
+                        <tr data-type="Respiratorio">
+                            <td>EQ-051</td>
+                            <td>Nebulizador hospitalario</td>
+                            <td>Respiratorio</td>
+                            <td><span class="badge success">Disponible</span></td>
+                            <td>Consulta 4</td>
+                            <td>08/03/2026</td>
+                            <td><button class="btn btn-mini">Registrar uso</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="uso" class="panel">
+            <div class="panel-header">
+                <div>
+                    <h3>Registro rápido de uso clínico</h3>
+                    <p>Formulario demostrativo para capturar el uso de un equipo.</p>
+                </div>
+            </div>
+
+            <form class="form-grid">
+                <div class="form-group">
+                    <label for="equipo">Equipo</label>
+                    <select id="equipo">
+                        <option>Monitor de signos vitales EQ-001</option>
+                        <option>Desfibrilador EQ-035</option>
+                        <option>Nebulizador hospitalario EQ-051</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="paciente">Paciente / referencia</label>
+                    <input type="text" id="paciente" placeholder="Ej. Cama 14 - Observación">
+                </div>
+
+                <div class="form-group">
+                    <label for="fechaUso">Fecha y hora</label>
+                    <input type="datetime-local" id="fechaUso">
+                </div>
+
+                <div class="form-group">
+                    <label for="observacion">Observación</label>
+                    <textarea id="observacion" rows="4" placeholder="Motivo de uso o comentario clínico"></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary">Guardar registro</button>
+                </div>
+            </form>
+        </section>
+
+        <section id="mantenimientos" class="panel">
+            <div class="panel-header">
+                <div>
+                    <h3>Consulta de mantenimientos</h3>
+                    <p>Solo lectura para verificar estado técnico antes del uso.</p>
+                </div>
+            </div>
+
+            <div class="maintenance-grid">
+                <article class="maintenance-card readonly">
+                    <h4>Ventilador mecánico EQ-022</h4>
+                    <p><strong>Estado:</strong> No disponible</p>
+                    <p><strong>Tipo:</strong> Preventivo</p>
+                    <p><strong>Resultado:</strong> En proceso</p>
+                    <p><strong>Última actualización:</strong> 19/03/2026 09:10</p>
+                    <p><strong>Nota:</strong> No debe utilizarse hasta liberación del área biomédica.</p>
+                </article>
+                <article class="maintenance-card readonly">
+                    <h4>Desfibrilador EQ-035</h4>
+                    <p><strong>Estado:</strong> Disponible</p>
+                    <p><strong>Tipo:</strong> Correctivo</p>
+                    <p><strong>Resultado:</strong> Finalizado</p>
+                    <p><strong>Última actualización:</strong> 14/03/2026 16:45</p>
+                    <p><strong>Nota:</strong> Equipo funcional y liberado para servicio.</p>
+                </article>
+                <article class="maintenance-card readonly">
+                    <h4>Bomba de infusión EQ-014</h4>
+                    <p><strong>Estado:</strong> Disponible con seguimiento</p>
+                    <p><strong>Tipo:</strong> Verificación</p>
+                    <p><strong>Resultado:</strong> Aprobado</p>
+                    <p><strong>Última actualización:</strong> 02/03/2026 11:20</p>
+                    <p><strong>Nota:</strong> Revisar calibración en próximo ciclo mensual.</p>
+                </article>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
