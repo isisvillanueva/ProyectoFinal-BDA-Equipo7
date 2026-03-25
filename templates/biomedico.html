@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+{% from 'macros.html' import flash_msgs, estado_badge, resultado_badge, bar_h %}
+{% block title %}HospitalIoT — Biomédico{% endblock %}
+
+{% block body %}
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-top">
+      <div class="sb-brand"><span class="sb-dot" style="background:#fcd34d"></span><span class="sb-name">HospitalIoT</span></div>
+      <div class="sb-badge" style="background:rgba(180,83,9,.2);color:#fcd34d">🔬 Biomédico</div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sbn-sec">Mi trabajo</div>
+      <button class="sbn-item" data-view="v-dash"      onclick="goTo('v-dash')"><span class="sbn-ic">📊</span>Mi panel</button>
+      <button class="sbn-item" data-view="v-reportes"  onclick="goTo('v-reportes')"><span class="sbn-ic">📈</span>Reportes</button>
+      <button class="sbn-item" data-view="v-registrar" onclick="goTo('v-registrar')"><span class="sbn-ic">🔧</span>Registrar mantenimiento</button>
+      <button class="sbn-item" data-view="v-historial" onclick="goTo('v-historial')"><span class="sbn-ic">📜</span>Historial</button>
+      <div class="sbn-sec">Análisis</div>
+      <button class="sbn-item" data-view="v-criticos"  onclick="goTo('v-criticos')">
+        <span class="sbn-ic">⚠️</span>Equipos críticos
+        {% if criticos %}<span class="sbn-num">{{ criticos|length }}</span>{% endif %}
+      </button>
+      <button class="sbn-item" data-view="v-carga"     onclick="goTo('v-carga')"><span class="sbn-ic">📊</span>Carga de trabajo</button>
+    </nav>
+    <div class="sb-foot">
+      <div class="sb-uname">{{ session.nombre }}</div>
+      <div class="sb-urole">Biomédico</div>
+      <a href="{{ url_for('logout') }}" class="sb-logout">← Cerrar sesión</a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title">Panel Biomédico</div>
+        <div class="topbar-sub">{{ session.nombre }} · Gestión y mantenimiento de equipos</div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-primary btn-sm" onclick="goTo('v-registrar')">+ Nuevo mantenimiento</button>
+      </div>
+    </div>
+
+    <div class="content">
+      {{ flash_msgs() }}
+
+      <!-- ══ DASHBOARD ══ -->
+      <section id="v-dash" class="view">
+        <div class="phdr"><div><div class="ptitle">Mi <em>Panel</em></div><div class="psub">Resumen de actividad biomédica personal</div></div></div>
+        <div class="stats">
+          <div class="stat" style="--sc:var(--amber)"><div class="st-ico">🔧</div><div class="st-label">Mis mantenimientos</div><div class="st-val">{{ mis_mants|length }}</div></div>
+          <div class="stat" style="--sc:var(--green)"><div class="st-ico">✅</div><div class="st-label">Exitosos</div><div class="st-val">{{ mis_mants|selectattr('resultado_mantenimiento','in',['Exitoso','Sin falla'])|list|length }}</div></div>
+          <div class="stat" style="--sc:var(--red)"><div class="st-ico">⚠️</div><div class="st-label">Problemáticos</div><div class="st-val">{{ mis_mants|selectattr('resultado_mantenimiento','in',['Fallido','Parcial','Requiere refacción','Reemplazo necesario'])|list|length }}</div></div>
+          <div class="stat" style="--sc:var(--red)"><div class="st-ico">🚨</div><div class="st-label">Críticos (sistema)</div><div class="st-val">{{ criticos|length }}</div></div>
+        </div>
+        <div class="two">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🔧 Mis últimos mantenimientos</span></div>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Equipo</th><th>Tipo</th><th>Resultado</th><th>Fecha</th></tr></thead>
+              <tbody>
+                {% for m in mis_mants[:6] %}
+                <tr>
+                  <td><strong>{{ m.nombre_equipo }}</strong></td>
+                  <td><span class="badge b-blue">{{ m.tipo_mantenimiento }}</span></td>
+                  <td>{{ resultado_badge(m.resultado_mantenimiento) }}</td>
+                  <td><span class="mono">{{ m.fecha_mantenimiento.strftime('%d/%m/%Y') if m.fecha_mantenimiento else '—' }}</span></td>
+                </tr>
+                {% else %}<tr><td colspan="4" class="empty">Sin mantenimientos</td></tr>{% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">⚠️ Equipos que requieren atención</span></div>
+            <div class="card-body">
+              {% for c in criticos[:5] %}
+              <div class="al er" style="margin-bottom:8px">
+                <span class="al-ic">🚨</span>
+                <div class="al-b"><strong>{{ c.nombre_equipo }}</strong><span><span class="cod">{{ c.codigo_interno }}</span> · {{ resultado_badge(c.resultado_mantenimiento) }} · {{ estado_badge(c.estado_equipo) }}</span></div>
+              </div>
+              {% else %}<div class="empty">✅ Sin equipos críticos</div>{% endfor %}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ REPORTES ══ -->
+      <section id="v-reportes" class="view">
+        <div class="phdr">
+          <div><div class="ptitle">Reportes de <em>Mantenimiento</em></div><div class="psub">Análisis técnico del parque de equipos — datos reales de BD</div></div>
+          <div style="display:flex;gap:8px"><span class="pill">📊 Chart.js 4</span><span class="pill">🔄 Datos en vivo</span></div>
+        </div>
+
+        <div class="rpt-kpi-grid">
+          <div class="rpt-kpi" style="--kc:var(--amber)">
+            <div class="rpt-kpi-icon">🔧</div>
+            <div class="rpt-kpi-val">{{ mis_mants|length }}</div>
+            <div class="rpt-kpi-label">Mis mantenimientos</div>
+            <div class="rpt-kpi-sub">Registrados por mí</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--amber);width:{{ [mis_mants|length * 10, 100]|min }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--green)">
+            <div class="rpt-kpi-icon">✅</div>
+            <div class="rpt-kpi-val">{{ rpt_por_resultado|selectattr('resultado_mantenimiento','in',['Exitoso','Sin falla'])|sum(attribute='total') }}</div>
+            <div class="rpt-kpi-label">Resultados exitosos</div>
+            <div class="rpt-kpi-sub">En todo el sistema</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--green);width:{{ (((rpt_por_resultado|selectattr('resultado_mantenimiento','in',['Exitoso','Sin falla'])|sum(attribute='total'))/(rpt_por_resultado|sum(attribute='total') or 1))*100)|int }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--red)">
+            <div class="rpt-kpi-icon">⚠️</div>
+            <div class="rpt-kpi-val">{{ criticos|length }}</div>
+            <div class="rpt-kpi-label">Equipos críticos</div>
+            <div class="rpt-kpi-sub">Con resultados problemáticos</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--red);width:{{ [criticos|length * 20, 100]|min }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--blue)">
+            <div class="rpt-kpi-icon">📊</div>
+            <div class="rpt-kpi-val">{{ rpt_por_tipo_mant|length }}</div>
+            <div class="rpt-kpi-label">Tipos de mantenimiento</div>
+            <div class="rpt-kpi-sub">Categorizados en el sistema</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--blue);width:{{ [rpt_por_tipo_mant|length * 10, 100]|min }}%"></div></div>
+          </div>
+        </div>
+
+        <div class="rpt-section-label"><span class="rpt-section-tag">// gráficas</span>Visualizaciones de BD</div>
+
+        <div class="rpt-charts-grid">
+          <div class="card">
+            <div class="card-hdr">
+              <span class="card-ttl">📊 Mantenimientos por tipo</span>
+              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:rgba(29,78,216,.8)"></span>Cantidad</span>
+            </div>
+            <div class="card-body rpt-chart-body"><canvas id="chart-tipos-mant"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr">
+              <span class="card-ttl">🥧 Distribución de resultados</span>
+              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:var(--green)"></span>Exitoso &nbsp;<span class="rpt-leg-dot" style="background:var(--red)"></span>Fallido &nbsp;<span class="rpt-leg-dot" style="background:var(--amber)"></span>Parcial</span>
+            </div>
+            <div class="card-body rpt-chart-body"><canvas id="chart-resultados"></canvas></div>
+          </div>
+        </div>
+
+        <div class="rpt-section-label"><span class="rpt-section-tag">// top equipos</span>Más mantenidos del sistema</div>
+
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">🏆 Equipos con más mantenimientos registrados</span></div>
+          <div class="card-body">
+            {% set mx_eq = rpt_equipos_mas_mant[0].total_mants if rpt_equipos_mas_mant else 1 %}
+            {% for r in rpt_equipos_mas_mant %}
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div style="width:150px;font-size:11px;font-weight:600;color:var(--tx);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.nombre_equipo }}</div>
+              <div style="flex:1">{{ bar_h(r.total_mants, mx_eq, 'var(--amber)') }}</div>
+              <span class="badge b-amber" style="flex-shrink:0">{{ r.total_mants }}</span>
+              <span class="mono" style="font-size:10px;color:var(--tx3);flex-shrink:0">{{ r.ultimo_mant.strftime('%d/%m/%y') if r.ultimo_mant else '—' }}</span>
+            </div>
+            {% else %}<div class="empty">Sin datos</div>{% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ REGISTRAR ══ -->
+      <section id="v-registrar" class="view">
+        <div class="phdr"><div><div class="ptitle">Registrar <em>Mantenimiento</em></div><div class="psub">Documenta el mantenimiento de un equipo médico</div></div></div>
+        <div class="card" style="max-width:580px">
+          <div class="card-hdr"><span class="card-ttl">🔧 Nuevo registro de mantenimiento</span></div>
+          <div class="card-body">
+            <form method="POST" action="{{ url_for('biomedico_mant') }}">
+              <div class="fg"><label class="fl">Equipo</label>
+                <select class="fc" name="id_equipo" required>
+                  <option value="">Seleccionar equipo…</option>
+                  {% for e in todos_equipos %}<option value="{{ e.id_equipo }}">{{ e.codigo_interno }} — {{ e.nombre_equipo }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="frow">
+                <div class="fg"><label class="fl">Tipo de mantenimiento</label>
+                  <select class="fc" name="id_tipo" required>
+                    <option value="">Seleccionar tipo…</option>
+                    {% for t in tipos_mant %}<option value="{{ t.id_tipo_mantenimiento }}">{{ t.tipo_mantenimiento }}</option>{% endfor %}
+                  </select>
+                </div>
+                <div class="fg"><label class="fl">Resultado</label>
+                  <select class="fc" name="id_resultado" required>
+                    <option value="">Seleccionar resultado…</option>
+                    {% for r in resultados %}<option value="{{ r.id_resultado_mantenimiento }}">{{ r.resultado_mantenimiento }}</option>{% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div class="fg"><label class="fl">Descripción del trabajo realizado</label>
+                <textarea class="fc" name="descripcion" rows="3" placeholder="Describe el mantenimiento realizado…" required></textarea>
+              </div>
+              <div class="fg"><label class="fl">Biomédico responsable</label><input class="fc" value="{{ session.nombre }}" readonly></div>
+              <div class="al wn" style="margin-bottom:16px">
+                <span class="al-ic">⚠️</span>
+                <div class="al-b"><strong>Trigger automático</strong><span>El resultado actualizará el estado del equipo en la BD automáticamente (fn_actualizar_estado_equipo_por_mantenimiento).</span></div>
+              </div>
+              <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">🔧 Registrar mantenimiento</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ HISTORIAL ══ -->
+      <section id="v-historial" class="view">
+        <div class="phdr"><div><div class="ptitle">Historial de <em>Mantenimientos</em></div><div class="psub">{{ mis_mants|length }} mantenimientos registrados por ti</div></div></div>
+        <div class="card">
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Equipo</th><th>Tipo</th><th>Resultado</th><th>Descripción</th><th>Fecha</th><th>Acciones</th></tr></thead>
+            <tbody>
+              {% for m in mis_mants %}
+              <tr>
+                <td><strong>{{ m.nombre_equipo }}</strong><br><span class="cod">{{ m.codigo_interno }}</span></td>
+                <td><span class="badge b-blue">{{ m.tipo_mantenimiento }}</span></td>
+                <td>{{ resultado_badge(m.resultado_mantenimiento) }}</td>
+                <td><span style="font-size:11px;color:var(--tx3);max-width:180px;display:block">{{ m.descripcion_mantenimiento }}</span></td>
+                <td><span class="mono">{{ m.fecha_mantenimiento.strftime('%d/%m/%Y %H:%M') if m.fecha_mantenimiento else '—' }}</span></td>
+                <td>
+                  <div style="display:flex;gap:5px">
+                    <button class="btn btn-secondary btn-sm" onclick='abrirEditarMant({{ m|tojson }})'>✏️ Editar</button>
+                    <form method="POST" action="{{ url_for('biomedico_eliminar_mant', id_mant=m.id_mantenimiento) }}">
+                      <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar este mantenimiento?')">🗑</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% else %}<tr><td colspan="6" class="empty">Sin historial de mantenimientos</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ══ CRÍTICOS ══ -->
+      <section id="v-criticos" class="view">
+        <div class="phdr"><div><div class="ptitle">Equipos <em>Críticos</em></div><div class="psub">Resultados problemáticos que requieren atención</div></div></div>
+        {% for c in criticos %}
+        <div class="al er" style="margin-bottom:10px">
+          <span class="al-ic">🚨</span>
+          <div class="al-b" style="flex:1">
+            <strong>{{ c.nombre_equipo }}</strong>
+            <span><span class="cod">{{ c.codigo_interno }}</span> · Resultado: {{ resultado_badge(c.resultado_mantenimiento) }} · Estado: {{ estado_badge(c.estado_equipo) }} · Último: <span class="mono">{{ c.fecha_mantenimiento.strftime('%d/%m/%Y') if c.fecha_mantenimiento else '—' }}</span></span>
+          </div>
+          <button class="btn btn-amber btn-sm" onclick="goTo('v-registrar')">Atender</button>
+        </div>
+        {% else %}
+        <div class="al ok"><span class="al-ic">✅</span><div class="al-b"><strong>Sin equipos críticos</strong><span>Todos los mantenimientos tienen resultados satisfactorios.</span></div></div>
+        {% endfor %}
+      </section>
+
+      <!-- ══ CARGA ══ -->
+      <section id="v-carga" class="view">
+        <div class="phdr"><div><div class="ptitle">Carga de <em>Trabajo</em></div><div class="psub">Distribución de mantenimientos — fn_reporte_carga_biomedica</div></div></div>
+        <div class="two">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">📊 Distribución por biomédico</span></div>
+            <div class="card-body rpt-chart-body"><canvas id="chart-carga"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">📋 Detalle de carga</span></div>
+            <div class="card-body">
+              {% set mx = carga[0].total_mantenimientos if carga else 1 %}
+              {% for c in carga %}
+              <div style="margin-bottom:14px">
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+                  <span><strong>{{ c.nombre_persona }} {{ c.apellido_persona }}</strong>{% if c.id_persona == session.id_persona %}<span class="badge b-teal" style="margin-left:6px;font-size:9px">Tú</span>{% endif %}</span>
+                  <span class="badge b-amber">{{ c.total_mantenimientos }} mant.</span>
+                </div>
+                {{ bar_h(c.total_mantenimientos, mx, 'var(--amber)') }}
+              </div>
+              {% else %}<div class="empty">Sin datos de carga</div>{% endfor %}
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR MANTENIMIENTO -->
+<div id="modal-editar-mant" class="modal-bg">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-ttl">✏️ Editar mantenimiento</span><button class="modal-x" onclick="closeModal('modal-editar-mant')">✕</button></div>
+    <form id="form-editar-mant" method="POST">
+      <div class="fg"><label class="fl">Tipo de mantenimiento</label>
+        <select class="fc" name="id_tipo" id="em-tipo" required>
+          {% for t in tipos_mant %}<option value="{{ t.id_tipo_mantenimiento }}">{{ t.tipo_mantenimiento }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Resultado</label>
+        <select class="fc" name="id_resultado" id="em-resultado" required>
+          {% for r in resultados %}<option value="{{ r.id_resultado_mantenimiento }}">{{ r.resultado_mantenimiento }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Descripción</label><textarea class="fc" name="descripcion" id="em-desc" rows="3" required></textarea></div>
+      <div class="modal-ft">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-editar-mant')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+const tiposMantData  = {{ rpt_por_tipo_mant | tojson }};
+const resultadosData = {{ rpt_por_resultado | tojson }};
+const cargaData      = {{ carga | tojson }};
+
+Chart.defaults.font.family = "'Outfit', sans-serif";
+Chart.defaults.color = '#8fa3b8';
+Chart.defaults.borderColor = 'rgba(221,229,238,.4)';
+
+function abrirEditarMant(m) {
+  document.getElementById('em-tipo').value = m.id_tipo_mantenimiento;
+  document.getElementById('em-resultado').value = m.id_resultado_mantenimiento;
+  document.getElementById('em-desc').value = m.descripcion_mantenimiento;
+  document.getElementById('form-editar-mant').action = '/biomedico/mantenimiento/' + m.id_mantenimiento + '/editar';
+  openModal('modal-editar-mant');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Barras por tipo
+  const ctx1 = document.getElementById('chart-tipos-mant');
+  if (ctx1 && tiposMantData.length > 0) {
+    new Chart(ctx1, {
+      type: 'bar',
+      data: {
+        labels: tiposMantData.map(r => r.tipo_mantenimiento.substring(0,14)),
+        datasets: [{ label: 'Mantenimientos', data: tiposMantData.map(r => r.total),
+          backgroundColor: 'rgba(29,78,216,.78)', borderRadius: 4, borderSkipped: false }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } }, y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } } }
+      }
+    });
+  }
+
+  // Doughnut resultados
+  const ctx2 = document.getElementById('chart-resultados');
+  if (ctx2 && resultadosData.length > 0) {
+    const colR = { 'Exitoso':'#047857','Sin falla':'#047857','Fallido':'#b91c1c','Parcial':'#b45309','Requiere refacción':'#b45309','Reemplazo necesario':'#b91c1c','Pendiente':'#8fa3b8','Reprogramado':'#1d4ed8','Cancelado':'#8fa3b8','En proceso':'#1d4ed8' };
+    new Chart(ctx2, {
+      type: 'doughnut',
+      data: {
+        labels: resultadosData.map(r => r.resultado_mantenimiento),
+        datasets: [{ data: resultadosData.map(r => r.total), backgroundColor: resultadosData.map(r => colR[r.resultado_mantenimiento]||'#8fa3b8'), borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'right', labels: { font: { size: 10 }, padding: 8, boxWidth: 10 } } } }
+    });
+  }
+
+  // Barras carga biomédica
+  const ctx3 = document.getElementById('chart-carga');
+  if (ctx3 && cargaData.length > 0) {
+    new Chart(ctx3, {
+      type: 'bar',
+      data: {
+        labels: cargaData.map(r => r.nombre_persona),
+        datasets: [{ label: 'Mantenimientos', data: cargaData.map(r => r.total_mantenimientos),
+          backgroundColor: cargaData.map(r => r.id_persona === {{ session.id_persona }} ? 'rgba(14,116,144,.85)' : 'rgba(180,83,9,.72)'),
+          borderRadius: 4, borderSkipped: false }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } } }
+      }
+    });
+  }
+});
+</script>
+{% endblock %}

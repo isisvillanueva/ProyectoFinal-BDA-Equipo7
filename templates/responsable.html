@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+{% from 'macros.html' import flash_msgs, estado_badge, bar_h %}
+{% block title %}HospitalIoT — Responsable de Área{% endblock %}
+
+{% block body %}
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-top">
+      <div class="sb-brand"><span class="sb-dot" style="background:#f9a8d4"></span><span class="sb-name">HospitalIoT</span></div>
+      <div class="sb-badge" style="background:rgba(109,40,217,.2);color:#c4b5fd">🏥 Resp. Área</div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sbn-sec">Mi área</div>
+      <button class="sbn-item" data-view="v-dash"         onclick="goTo('v-dash')"><span class="sbn-ic">📊</span>Dashboard</button>
+      <button class="sbn-item" data-view="v-reportes"     onclick="goTo('v-reportes')"><span class="sbn-ic">📈</span>Reportes del área</button>
+      <button class="sbn-item" data-view="v-equipos"      onclick="goTo('v-equipos')"><span class="sbn-ic">🔬</span>Equipos</button>
+      <div class="sbn-sec">Personal</div>
+      <button class="sbn-item" data-view="v-personal"     onclick="goTo('v-personal')"><span class="sbn-ic">👥</span>Personal</button>
+      <button class="sbn-item" data-view="v-asignaciones" onclick="goTo('v-asignaciones')"><span class="sbn-ic">📌</span>Asignaciones</button>
+      <div class="sbn-sec">Historial</div>
+      <button class="sbn-item" data-view="v-movimientos"  onclick="goTo('v-movimientos')"><span class="sbn-ic">🔄</span>Movimientos</button>
+    </nav>
+    <div class="sb-foot">
+      <div class="sb-uname">{{ session.nombre }}</div>
+      <div class="sb-urole">{% if mi_area %}{{ mi_area.area }}{% else %}Responsable{% endif %}</div>
+      <a href="{{ url_for('logout') }}" class="sb-logout">← Cerrar sesión</a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title">Área: {{ mi_area.area if mi_area else 'Sin área asignada' }}</div>
+        <div class="topbar-sub">
+          {{ session.nombre }} · Responsable desde {% if mi_area %}{{ mi_area.fecha_inicio.strftime('%d/%m/%Y') if mi_area.fecha_inicio else '—' }}{% endif %}
+          <span class="badge b-green" style="margin-left:6px"><span class="bdot"></span>Turno activo</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+      {{ flash_msgs() }}
+      {% if not mi_area %}<div class="al er"><span class="al-ic">⚠️</span><div class="al-b"><strong>Sin área asignada</strong><span>No tienes un área activa. Contacta al administrador.</span></div></div>{% endif %}
+
+      <!-- ══ DASHBOARD ══ -->
+      <section id="v-dash" class="view">
+        <div class="phdr"><div><div class="ptitle">Dashboard <em>{{ mi_area.area if mi_area else 'de Área' }}</em></div><div class="psub">Vista operativa del área</div></div></div>
+        <div class="stats">
+          {% set disp = equipos_area|selectattr('estado_equipo','equalto','Disponible')|list %}
+          {% set en_uso = equipos_area|selectattr('estado_equipo','equalto','En uso')|list %}
+          {% set mant = equipos_area|selectattr('estado_equipo','equalto','En mantenimiento')|list %}
+          <div class="stat" style="--sc:var(--purple)"><div class="st-ico">🔬</div><div class="st-label">Equipos en área</div><div class="st-val">{{ equipos_area|length }}</div></div>
+          <div class="stat" style="--sc:var(--green)"><div class="st-ico">✅</div><div class="st-label">Disponibles</div><div class="st-val">{{ disp|length }}</div></div>
+          <div class="stat" style="--sc:var(--teal)"><div class="st-ico">▶️</div><div class="st-label">En uso</div><div class="st-val">{{ en_uso|length }}</div></div>
+          <div class="stat" style="--sc:var(--amber)"><div class="st-ico">🔧</div><div class="st-label">Mantenimiento</div><div class="st-val">{{ mant|length }}</div></div>
+          <div class="stat" style="--sc:var(--blue)"><div class="st-ico">📌</div><div class="st-label">Asignaciones activas</div><div class="st-val">{{ asignaciones|length }}</div></div>
+        </div>
+        <div class="two">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🔬 Equipos del área</span></div>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Equipo</th><th>Estado</th><th>Ubicación</th><th>Cambiar estado</th></tr></thead>
+              <tbody>
+                {% for e in equipos_area %}
+                <tr>
+                  <td><strong>{{ e.nombre_equipo }}</strong><br><span class="cod">{{ e.codigo_interno }}</span></td>
+                  <td>{{ estado_badge(e.estado_equipo) }}</td>
+                  <td>{{ e.nombre_ubicacion }}</td>
+                  <td>
+                    <form method="POST" action="{{ url_for('responsable_cambiar_estado', id_equipo=e.id_equipo) }}" style="display:flex;gap:4px">
+                      <select class="fc" name="id_estado_equipo" style="padding:4px 8px;font-size:11px;min-width:130px">
+                        {% for es in estados_cat %}<option value="{{ es.id_estado_equipo }}" {% if es.id_estado_equipo == e.id_estado_equipo %}selected{% endif %}>{{ es.estado_equipo }}</option>{% endfor %}
+                      </select>
+                      <button type="submit" class="btn btn-secondary btn-sm">✔</button>
+                    </form>
+                  </td>
+                </tr>
+                {% else %}<tr><td colspan="4" class="empty">Sin equipos en esta área</td></tr>{% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">👥 Responsables activos del sistema</span></div>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Área</th><th>Responsable</th><th>Desde</th></tr></thead>
+              <tbody>
+                {% for r in responsables_activos %}
+                <tr>
+                  <td><strong>{{ r.area }}</strong></td>
+                  <td>{{ r.responsable }}</td>
+                  <td><span class="mono">{{ r.fecha_inicio.strftime('%d/%m/%Y') if r.fecha_inicio else '—' }}</span></td>
+                </tr>
+                {% else %}<tr><td colspan="3" class="empty">Sin responsables activos</td></tr>{% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">🔄 Movimientos recientes del área</span></div>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Equipo</th><th>Tipo</th><th>Origen</th><th>Destino</th><th>Responsable</th><th>Fecha</th></tr></thead>
+            <tbody>
+              {% for m in movimientos[:5] %}
+              <tr>
+                <td><strong>{{ m.nombre_equipo }}</strong></td>
+                <td><span class="badge b-teal">{{ m.tipo_movimiento }}</span></td>
+                <td>{{ m.origen }}</td><td>{{ m.destino }}</td>
+                <td>{{ m.responsable }}</td>
+                <td><span class="mono">{{ m.fecha_movimiento.strftime('%d/%m %H:%M') if m.fecha_movimiento else '—' }}</span></td>
+              </tr>
+              {% else %}<tr><td colspan="6" class="empty">Sin movimientos en el área</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ══ REPORTES ══ -->
+      <section id="v-reportes" class="view">
+        <div class="phdr">
+          <div><div class="ptitle">Reportes del <em>{{ mi_area.area if mi_area else 'Área' }}</em></div><div class="psub">Métricas operativas del área — datos reales de BD</div></div>
+          <div style="display:flex;gap:8px"><span class="pill">📊 Chart.js 4</span><span class="pill">🔄 Datos en vivo</span></div>
+        </div>
+
+        <div class="rpt-kpi-grid">
+          <div class="rpt-kpi" style="--kc:var(--purple)">
+            <div class="rpt-kpi-icon">🔬</div>
+            <div class="rpt-kpi-val">{{ equipos_area|length }}</div>
+            <div class="rpt-kpi-label">Equipos en el área</div>
+            <div class="rpt-kpi-sub">Total registrados</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--purple);width:100%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--green)">
+            <div class="rpt-kpi-icon">✅</div>
+            <div class="rpt-kpi-val">{{ equipos_area|selectattr('estado_equipo','equalto','Disponible')|list|length }}</div>
+            <div class="rpt-kpi-label">Disponibles en área</div>
+            <div class="rpt-kpi-sub">Listos para asignar</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--green);width:{{ ((equipos_area|selectattr('estado_equipo','equalto','Disponible')|list|length/(equipos_area|length or 1))*100)|int }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--blue)">
+            <div class="rpt-kpi-icon">📌</div>
+            <div class="rpt-kpi-val">{{ asignaciones|length }}</div>
+            <div class="rpt-kpi-label">Asignaciones activas</div>
+            <div class="rpt-kpi-sub">Sin cerrar en el área</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--blue);width:{{ [asignaciones|length * 20, 100]|min }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--teal)">
+            <div class="rpt-kpi-icon">🔄</div>
+            <div class="rpt-kpi-val">{{ movimientos|length }}</div>
+            <div class="rpt-kpi-label">Movimientos del área</div>
+            <div class="rpt-kpi-sub">Registrados en el sistema</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--teal);width:{{ [movimientos|length * 5, 100]|min }}%"></div></div>
+          </div>
+        </div>
+
+        <div class="rpt-section-label"><span class="rpt-section-tag">// gráficas</span>Datos reales de BD</div>
+
+        <div class="rpt-charts-grid">
+          <div class="card">
+            <div class="card-hdr">
+              <span class="card-ttl">🥧 Estado de equipos del área</span>
+              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:var(--green)"></span>Disp. &nbsp;<span class="rpt-leg-dot" style="background:var(--teal)"></span>Uso &nbsp;<span class="rpt-leg-dot" style="background:var(--amber)"></span>Mant.</span>
+            </div>
+            <div class="card-body rpt-chart-body"><canvas id="chart-estados-resp"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr">
+              <span class="card-ttl">📊 Tipos de movimientos en el área</span>
+              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:rgba(14,116,144,.85)"></span>Frecuencia</span>
+            </div>
+            <div class="card-body rpt-chart-body"><canvas id="chart-movs-tipo"></canvas></div>
+          </div>
+        </div>
+
+        <div class="rpt-section-label"><span class="rpt-section-tag">// actividad</span>Por equipo del área</div>
+
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">📋 Actividad de cada equipo del área</span></div>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Equipo</th><th>Asignaciones históricas</th><th>Usos clínicos</th><th>Balance</th></tr></thead>
+            <tbody>
+              {% for r in rpt_actividad_equipos %}
+              <tr>
+                <td><strong>{{ r.nombre_equipo }}</strong></td>
+                <td><span class="badge b-blue">{{ r.veces_asignado }}</span></td>
+                <td><span class="badge b-teal">{{ r.usos_clinicos }}</span></td>
+                <td>
+                  {% set tot = r.veces_asignado + r.usos_clinicos %}
+                  {% if tot > 5 %}<span class="badge b-green">Alta actividad</span>
+                  {% elif tot > 0 %}<span class="badge b-amber">Actividad media</span>
+                  {% else %}<span class="badge b-gray">Sin actividad</span>{% endif %}
+                </td>
+              </tr>
+              {% else %}<tr><td colspan="4" class="empty">Sin datos de actividad</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+
+        <div class="rpt-section-label"><span class="rpt-section-tag">// métricas IoT</span>Indicadores del área</div>
+        <div class="card">
+          <div class="card-body">
+            <ul class="rpt-metric-list">
+              <li><span class="rpt-ml-dot" style="background:var(--purple)"></span>Estado operativo de equipos del área en tiempo real</li>
+              <li><span class="rpt-ml-dot" style="background:var(--teal)"></span>Trazabilidad de movimientos NFC · GPS · Beacon</li>
+              <li><span class="rpt-ml-dot" style="background:var(--green)"></span>Disponibilidad de equipos por turno y área</li>
+              <li><span class="rpt-ml-dot" style="background:var(--blue)"></span>Asignaciones activas y su historial</li>
+              <li><span class="rpt-ml-dot" style="background:var(--amber)"></span>Uso clínico registrado por el personal del área</li>
+              <li><span class="rpt-ml-dot" style="background:var(--red)"></span>Equipos con estados críticos o fuera de servicio</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ EQUIPOS ══ -->
+      <section id="v-equipos" class="view">
+        <div class="phdr"><div><div class="ptitle">Equipos <em>bajo mi cargo</em></div><div class="psub">{{ equipos_area|length }} equipos en {{ mi_area.area if mi_area else 'el área' }}</div></div></div>
+        <div class="card">
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Código</th><th>Equipo</th><th>Marca</th><th>Estado</th><th>Ubicación</th><th>Cambiar estado</th></tr></thead>
+            <tbody>
+              {% for e in equipos_area %}
+              <tr>
+                <td><span class="cod">{{ e.codigo_interno }}</span></td>
+                <td><strong>{{ e.nombre_equipo }}</strong></td>
+                <td><span style="font-size:11px;color:var(--tx3)">{{ e.marca }}</span></td>
+                <td>{{ estado_badge(e.estado_equipo) }}</td>
+                <td>{{ e.nombre_ubicacion }}</td>
+                <td>
+                  <form method="POST" action="{{ url_for('responsable_cambiar_estado', id_equipo=e.id_equipo) }}" style="display:flex;gap:4px">
+                    <select class="fc" name="id_estado_equipo" style="padding:4px 8px;font-size:11px;min-width:140px">
+                      {% for es in estados_cat %}<option value="{{ es.id_estado_equipo }}" {% if es.id_estado_equipo == e.id_estado_equipo %}selected{% endif %}>{{ es.estado_equipo }}</option>{% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-primary btn-sm">✔ Aplicar</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}<tr><td colspan="6" class="empty">Sin equipos asignados al área</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ══ PERSONAL ══ -->
+      <section id="v-personal" class="view">
+        <div class="phdr"><div><div class="ptitle">Personal del <em>Sistema</em></div><div class="psub">{{ personal|length }} enfermeros registrados</div></div></div>
+        <div class="card">
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Nombre</th><th>Especialidad</th><th>Correo</th></tr></thead>
+            <tbody>
+              {% for p in personal %}
+              <tr>
+                <td><strong>{{ p.nombre_persona }} {{ p.apellido_persona }}</strong></td>
+                <td><span class="badge b-green">{{ p.especialidad_enfermero }}</span></td>
+                <td><span class="mono">{{ p.correo_persona }}</span></td>
+              </tr>
+              {% else %}<tr><td colspan="3" class="empty">Sin personal registrado</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ══ ASIGNACIONES ══ -->
+      <section id="v-asignaciones" class="view">
+        <div class="phdr"><div><div class="ptitle">Asignaciones <em>del Área</em></div><div class="psub">{{ asignaciones|length }} asignaciones activas</div></div></div>
+        <div class="card">
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Equipo</th><th>Asignado a</th><th>Ubicación</th><th>Desde</th><th>Observación</th><th>Acción</th></tr></thead>
+            <tbody>
+              {% for a in asignaciones %}
+              <tr>
+                <td><strong>{{ a.nombre_equipo }}</strong><br><span class="cod">{{ a.codigo_interno }}</span></td>
+                <td>{{ a.asignado_a }}</td><td>{{ a.nombre_ubicacion }}</td>
+                <td><span class="mono">{{ a.fecha_asignacion.strftime('%d/%m/%Y') if a.fecha_asignacion else '—' }}</span></td>
+                <td><span style="font-size:11px;color:var(--tx3)">{{ a.observacion_asignacion or '—' }}</span></td>
+                <td>
+                  <form method="POST" action="{{ url_for('responsable_liberar_asignacion', id_asignacion=a.id_asignacion) }}">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Liberar esta asignación?')">🔓 Liberar</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}<tr><td colspan="6" class="empty">Sin asignaciones activas en el área</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ══ MOVIMIENTOS ══ -->
+      <section id="v-movimientos" class="view">
+        <div class="phdr"><div><div class="ptitle">Movimientos <em>del Área</em></div><div class="psub">{{ movimientos|length }} movimientos relacionados con el área</div></div></div>
+        <div class="card">
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Equipo</th><th>Tipo</th><th>Origen</th><th>Destino</th><th>Responsable</th><th>Observación</th><th>Fecha</th></tr></thead>
+            <tbody>
+              {% for m in movimientos %}
+              <tr>
+                <td><strong>{{ m.nombre_equipo }}</strong></td>
+                <td><span class="badge b-teal">{{ m.tipo_movimiento }}</span></td>
+                <td>{{ m.origen }}</td><td>{{ m.destino }}</td>
+                <td>{{ m.responsable }}</td>
+                <td><span style="font-size:11px;color:var(--tx3)">{{ m.observacion_movimiento or '—' }}</span></td>
+                <td><span class="mono">{{ m.fecha_movimiento.strftime('%d/%m %H:%M') if m.fecha_movimiento else '—' }}</span></td>
+              </tr>
+              {% else %}<tr><td colspan="7" class="empty">Sin movimientos en el área</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+const estadosRespData = {{ rpt_estados_area | tojson }};
+const movsTipoData    = {{ rpt_tipos_movs | tojson }};
+
+Chart.defaults.font.family = "'Outfit', sans-serif";
+Chart.defaults.color = '#8fa3b8';
+Chart.defaults.borderColor = 'rgba(221,229,238,.4)';
+
+document.addEventListener('DOMContentLoaded', () => {
+  const colE = {'Disponible':'#047857','En uso':'#0e7490','En mantenimiento':'#b45309','Fuera de servicio':'#b91c1c'};
+  const palette = ['rgba(14,116,144,.8)','rgba(29,78,216,.75)','rgba(109,40,217,.75)','rgba(4,120,87,.75)','rgba(180,83,9,.75)','rgba(185,28,28,.75)','rgba(12,74,110,.8)','rgba(4,120,87,.6)','rgba(29,78,216,.5)','rgba(109,40,217,.5)'];
+
+  // Doughnut estados del área
+  const ctx1 = document.getElementById('chart-estados-resp');
+  if (ctx1 && estadosRespData.length > 0) {
+    new Chart(ctx1, {
+      type: 'doughnut',
+      data: {
+        labels: estadosRespData.map(r => r.estado_equipo),
+        datasets: [{ data: estadosRespData.map(r => r.total), backgroundColor: estadosRespData.map(r => colE[r.estado_equipo]||'#8fa3b8'), borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'right', labels: { font: { size: 10 }, padding: 10, boxWidth: 10 } } } }
+    });
+  } else if (ctx1) {
+    ctx1.parentElement.innerHTML = '<p style="text-align:center;color:#8fa3b8;padding:40px;font-size:12px">Sin equipos en esta área</p>';
+  }
+
+  // Barras tipos de movimiento
+  const ctx2 = document.getElementById('chart-movs-tipo');
+  if (ctx2 && movsTipoData.length > 0) {
+    new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels: movsTipoData.map(r => r.tipo_movimiento.substring(0,14)),
+        datasets: [{ label: 'Movimientos', data: movsTipoData.map(r => r.total), backgroundColor: movsTipoData.map((_,i) => palette[i % palette.length]), borderRadius: 4, borderSkipped: false }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } }, y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } } }
+      }
+    });
+  } else if (ctx2) {
+    ctx2.parentElement.innerHTML = '<p style="text-align:center;color:#8fa3b8;padding:40px;font-size:12px">Sin movimientos registrados en el área</p>';
+  }
+});
+</script>
+{% endblock %}

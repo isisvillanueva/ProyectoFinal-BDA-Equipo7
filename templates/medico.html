@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+{% from 'macros.html' import flash_msgs, estado_badge, bar_h %}
+{% block title %}HospitalIoT — Médico{% endblock %}
+
+{% block body %}
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-top">
+      <div class="sb-brand"><span class="sb-dot" style="background:#67e8f9"></span><span class="sb-name">HospitalIoT</span></div>
+      <div class="sb-badge" style="background:rgba(14,116,144,.25);color:#7dd3fc">🩺 Médico</div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sbn-sec">Mi turno</div>
+      <button class="sbn-item" data-view="v-dash"        onclick="goTo('v-dash')"><span class="sbn-ic">📊</span>Mi panel</button>
+      <button class="sbn-item" data-view="v-reportes"    onclick="goTo('v-reportes')"><span class="sbn-ic">📈</span>Mis métricas</button>
+      <button class="sbn-item" data-view="v-disponibles" onclick="goTo('v-disponibles')"><span class="sbn-ic">✅</span>Equipos disponibles</button>
+      <button class="sbn-item" data-view="v-registrar"   onclick="goTo('v-registrar')"><span class="sbn-ic">📋</span>Registrar uso</button>
+      <div class="sbn-sec">Historial</div>
+      <button class="sbn-item" data-view="v-asignaciones" onclick="goTo('v-asignaciones')"><span class="sbn-ic">📌</span>Mis asignaciones</button>
+      <button class="sbn-item" data-view="v-historial"    onclick="goTo('v-historial')"><span class="sbn-ic">🕓</span>Historial de uso</button>
+    </nav>
+    <div class="sb-foot">
+      <div class="sb-uname">{{ session.nombre }}</div>
+      <div class="sb-urole">{% if perfil %}{{ perfil.especialidad_medico }}{% else %}Médico{% endif %}</div>
+      <a href="{{ url_for('logout') }}" class="sb-logout">← Cerrar sesión</a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title">Dr. {{ perfil.apellido_persona if perfil else session.nombre }}</div>
+        <div class="topbar-sub">{{ perfil.especialidad_medico if perfil else 'Médico' }} · Turno activo</div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-primary btn-sm" onclick="goTo('v-registrar')">+ Registrar uso clínico</button>
+      </div>
+    </div>
+
+    <div class="content">
+      {{ flash_msgs() }}
+
+      <!-- ══ DASHBOARD ══ -->
+      <section id="v-dash" class="view">
+        <div class="phdr"><div><div class="ptitle">Mi <em>panel</em></div><div class="psub">Resumen de actividad clínica personal</div></div></div>
+        <div class="stats">
+          <div class="stat" style="--sc:var(--green)"><div class="st-ico">✅</div><div class="st-label">Equipos disponibles</div><div class="st-val">{{ disponibles|length }}</div></div>
+          <div class="stat" style="--sc:var(--teal)"><div class="st-ico">📌</div><div class="st-label">Asignados a mí</div><div class="st-val">{{ mis_asignaciones|length }}</div></div>
+          <div class="stat" style="--sc:var(--blue)"><div class="st-ico">📋</div><div class="st-label">Usos registrados</div><div class="st-val">{{ mis_usos|length }}</div></div>
+        </div>
+        <div class="two">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">📌 Equipos asignados a mí</span></div>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Equipo</th><th>Ubicación</th><th>Desde</th></tr></thead>
+              <tbody>
+                {% for a in mis_asignaciones %}
+                <tr>
+                  <td><strong>{{ a.nombre_equipo }}</strong><br><span class="cod">{{ a.codigo_interno }}</span></td>
+                  <td>{{ a.nombre_ubicacion }}</td>
+                  <td><span class="mono">{{ a.fecha_asignacion.strftime('%d/%m/%Y') if a.fecha_asignacion else '—' }}</span></td>
+                </tr>
+                {% else %}<tr><td colspan="3" class="empty">Sin equipos asignados</td></tr>{% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🕓 Últimos usos clínicos</span></div>
+            <div class="card-body">
+              {% if mis_usos %}
+              <div class="tl">
+                {% for u in mis_usos[:5] %}
+                <div class="tl-it">
+                  <div class="tl-dot tl-teal"></div>
+                  <div class="tl-t">{{ u.nombre_equipo }}</div>
+                  <div class="tl-s"><span class="cod">{{ u.codigo_interno }}</span> · {{ u.fecha_uso.strftime('%d/%m %H:%M') if u.fecha_uso else '—' }}</div>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}<div class="empty">Sin usos registrados</div>{% endif %}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ REPORTES ══ -->
+      <section id="v-reportes" class="view">
+        <div class="phdr">
+          <div><div class="ptitle">Mis <em>Métricas</em> Clínicas</div><div class="psub">Actividad personal y disponibilidad de equipos del hospital</div></div>
+          <div style="display:flex;gap:8px"><span class="pill">📊 Chart.js 4</span><span class="pill">🔄 Datos en vivo</span></div>
+        </div>
+
+        <div class="rpt-kpi-grid">
+          <div class="rpt-kpi" style="--kc:var(--teal)">
+            <div class="rpt-kpi-icon">📋</div>
+            <div class="rpt-kpi-val">{{ mis_usos|length }}</div>
+            <div class="rpt-kpi-label">Usos clínicos registrados</div>
+            <div class="rpt-kpi-sub">Por ti en el sistema</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--teal);width:{{ [mis_usos|length * 10, 100]|min }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--green)">
+            <div class="rpt-kpi-icon">✅</div>
+            <div class="rpt-kpi-val">{{ disponibles|length }}</div>
+            <div class="rpt-kpi-label">Equipos disponibles</div>
+            <div class="rpt-kpi-sub">Listos ahora mismo</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--green);width:{{ ((disponibles|length / (rpt_por_tipo|sum(attribute='total') or 1))*100)|int }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--blue)">
+            <div class="rpt-kpi-icon">📌</div>
+            <div class="rpt-kpi-val">{{ mis_asignaciones|length }}</div>
+            <div class="rpt-kpi-label">Asignaciones activas</div>
+            <div class="rpt-kpi-sub">Equipos a mi cargo</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--blue);width:{{ [mis_asignaciones|length * 20, 100]|min }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--purple)">
+            <div class="rpt-kpi-icon">🔬</div>
+            <div class="rpt-kpi-val">{{ rpt_mis_equipos_usados|length }}</div>
+            <div class="rpt-kpi-label">Tipos de equipo usados</div>
+            <div class="rpt-kpi-sub">Distintos equipos utilizados</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--purple);width:{{ [rpt_mis_equipos_usados|length * 15, 100]|min }}%"></div></div>
+          </div>
+        </div>
+
+        <div class="rpt-section-label"><span class="rpt-section-tag">// gráficas</span>Datos reales de la BD</div>
+
+        <div class="rpt-charts-grid">
+          <div class="card">
+            <div class="card-hdr">
+              <span class="card-ttl">📊 Mis equipos más utilizados</span>
+              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:rgba(14,116,144,.85)"></span>Usos clínicos</span>
+            </div>
+            <div class="card-body rpt-chart-body"><canvas id="chart-mis-usos"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr">
+              <span class="card-ttl">🥧 Disponibilidad global de equipos</span>
+              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:var(--green)"></span>Disp. &nbsp;<span class="rpt-leg-dot" style="background:var(--teal)"></span>Uso &nbsp;<span class="rpt-leg-dot" style="background:var(--amber)"></span>Mant.</span>
+            </div>
+            <div class="card-body rpt-chart-body"><canvas id="chart-estados-med"></canvas></div>
+          </div>
+        </div>
+
+        <div class="rpt-section-label"><span class="rpt-section-tag">// disponibilidad</span>Por tipo de equipo</div>
+
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">🔬 Disponibilidad de equipos por tipo</span></div>
+          <div class="card-body">
+            {% for r in rpt_por_tipo %}
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div style="width:130px;font-size:11px;font-weight:600;color:var(--tx2);flex-shrink:0">{{ r.tipo_equipo }}</div>
+              <div style="flex:1">{{ bar_h(r.disponibles, r.total, 'var(--green)') }}</div>
+              <span class="badge b-green" style="flex-shrink:0">{{ r.disponibles }}/{{ r.total }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ DISPONIBLES ══ -->
+      <section id="v-disponibles" class="view">
+        <div class="phdr"><div><div class="ptitle">Equipos <em>Disponibles</em></div><div class="psub">{{ disponibles|length }} equipos listos para uso clínico ahora</div></div></div>
+        <div class="card">
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Código</th><th>Equipo</th><th>Marca</th><th>Tipo</th><th>Área</th><th>Ubicación</th><th>Acción</th></tr></thead>
+            <tbody>
+              {% for e in disponibles %}
+              <tr>
+                <td><span class="cod">{{ e.codigo_interno }}</span></td>
+                <td><strong>{{ e.nombre_equipo }}</strong></td>
+                <td><span style="font-size:11px;color:var(--tx3)">{{ e.marca }}</span></td>
+                <td><span class="badge b-blue">{{ e.tipo_equipo }}</span></td>
+                <td>{{ e.area }}</td><td>{{ e.nombre_ubicacion }}</td>
+                <td>
+                  <form method="POST" action="{{ url_for('medico_uso') }}">
+                    <input type="hidden" name="id_equipo" value="{{ e.id_equipo }}">
+                    <button type="submit" class="btn btn-primary btn-sm">▶️ Registrar uso</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}<tr><td colspan="7" class="empty">No hay equipos disponibles ahora</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ══ REGISTRAR USO ══ -->
+      <section id="v-registrar" class="view">
+        <div class="phdr"><div><div class="ptitle">Registrar <em>Uso Clínico</em></div><div class="psub">El sistema validará disponibilidad y autorización automáticamente</div></div></div>
+        <div class="card" style="max-width:520px">
+          <div class="card-hdr"><span class="card-ttl">📋 Nuevo registro de uso</span></div>
+          <div class="card-body">
+            <form method="POST" action="{{ url_for('medico_uso') }}">
+              <div class="fg"><label class="fl">Equipo</label>
+                <select class="fc" name="id_equipo" required>
+                  <option value="">Selecciona un equipo…</option>
+                  {% for e in todos_equipos %}<option value="{{ e.id_equipo }}">{{ e.codigo_interno }} — {{ e.nombre_equipo }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Médico responsable</label><input class="fc" value="{{ session.nombre }}" readonly></div>
+              <div class="al in" style="margin-bottom:16px">
+                <span class="al-ic">ℹ️</span>
+                <div class="al-b"><strong>Validación automática (trigger BD)</strong><span>La fecha/hora se registran al confirmar. Se verifica disponibilidad del equipo y autorización clínica.</span></div>
+              </div>
+              <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">✅ Registrar uso clínico</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ MIS ASIGNACIONES ══ -->
+      <section id="v-asignaciones" class="view">
+        <div class="phdr"><div><div class="ptitle">Mis <em>Asignaciones</em></div><div class="psub">Equipos asignados actualmente a tu nombre</div></div></div>
+        <div class="card">
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Equipo</th><th>Ubicación</th><th>Desde</th><th>Estado</th><th>Observación</th></tr></thead>
+            <tbody>
+              {% for a in mis_asignaciones %}
+              <tr>
+                <td><strong>{{ a.nombre_equipo }}</strong><br><span class="cod">{{ a.codigo_interno }}</span></td>
+                <td>{{ a.nombre_ubicacion }}</td>
+                <td><span class="mono">{{ a.fecha_asignacion.strftime('%d/%m/%Y %H:%M') if a.fecha_asignacion else '—' }}</span></td>
+                <td><span class="badge b-green"><span class="bdot"></span>Activa</span></td>
+                <td><span style="font-size:11px;color:var(--tx3)">{{ a.observacion_asignacion or '—' }}</span></td>
+              </tr>
+              {% else %}<tr><td colspan="5" class="empty">Sin asignaciones activas</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ══ HISTORIAL ══ -->
+      <section id="v-historial" class="view">
+        <div class="phdr"><div><div class="ptitle">Historial de <em>Uso Clínico</em></div><div class="psub">{{ mis_usos|length }} registros personales</div></div></div>
+        <div class="card">
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Equipo</th><th>Código</th><th>Fecha de uso</th><th>Acción</th></tr></thead>
+            <tbody>
+              {% for u in mis_usos %}
+              <tr>
+                <td><strong>{{ u.nombre_equipo }}</strong></td>
+                <td><span class="cod">{{ u.codigo_interno }}</span></td>
+                <td><span class="mono">{{ u.fecha_uso.strftime('%d/%m/%Y %H:%M') if u.fecha_uso else '—' }}</span></td>
+                <td>
+                  <form method="POST" action="{{ url_for('medico_eliminar_uso', id_uso=u.id_uso_clinico) }}">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar este registro de uso?')">🗑 Eliminar</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}<tr><td colspan="4" class="empty">Sin historial de uso</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+const misUsosData    = {{ rpt_mis_equipos_usados | tojson }};
+const estadosMedData = {{ rpt_estados_globales | tojson }};
+
+Chart.defaults.font.family = "'Outfit', sans-serif";
+Chart.defaults.color = '#8fa3b8';
+Chart.defaults.borderColor = 'rgba(221,229,238,.4)';
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Mis equipos más usados — barras horizontales
+  const ctx1 = document.getElementById('chart-mis-usos');
+  if (ctx1 && misUsosData.length > 0) {
+    new Chart(ctx1, {
+      type: 'bar',
+      data: {
+        labels: misUsosData.map(r => r.nombre_equipo.substring(0,20)),
+        datasets: [{
+          label: 'Usos clínicos',
+          data: misUsosData.map(r => r.total_usos),
+          backgroundColor: 'rgba(14,116,144,.82)',
+          borderRadius: 4, borderSkipped: false
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } },
+          y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+        }
+      }
+    });
+  } else if (ctx1) {
+    const p = document.createElement('p');
+    p.textContent = 'Sin usos clínicos registrados aún.';
+    p.style.cssText = 'text-align:center;color:#8fa3b8;padding:40px;font-size:12px';
+    ctx1.replaceWith(p);
+  }
+
+  // Estado global doughnut
+  const ctx2 = document.getElementById('chart-estados-med');
+  if (ctx2 && estadosMedData.length > 0) {
+    const colores = { 'Disponible':'#047857','En uso':'#0e7490','En mantenimiento':'#b45309','Fuera de servicio':'#b91c1c' };
+    new Chart(ctx2, {
+      type: 'doughnut',
+      data: {
+        labels: estadosMedData.map(r => r.estado_equipo),
+        datasets: [{
+          data: estadosMedData.map(r => r.total),
+          backgroundColor: estadosMedData.map(r => colores[r.estado_equipo] || '#8fa3b8'),
+          borderWidth: 2, borderColor: '#fff', hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '62%',
+        plugins: { legend: { position: 'right', labels: { font: { size: 10 }, padding: 10, boxWidth: 10 } } }
+      }
+    });
+  }
+});
+</script>
+{% endblock %}

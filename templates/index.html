@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% block title %}HospitalIoT — Módulo Público{% endblock %}
+
+{% block body %}
+<div class="public-shell">
+
+  <!-- HERO / INTRO -->
+  <header class="public-hero">
+    <div class="public-hero__copy">
+      <div class="public-kicker">HospitalIoT · Sistema de gestión</div>
+      <h1>Consulta pública de equipos clínicos</h1>
+      <p>
+        Explora el inventario hospitalario con filtros dinámicos, consulta el estado
+        de los equipos y visualiza métricas del sistema.
+      </p>
+
+      <div class="public-hero__actions">
+        <a class="btn btn-primary" href="#modulo-publico">Explorar</a>
+        <a class="btn btn-secondary" href="{{ url_for('login_view') }}">Acceso al sistema</a>
+      </div>
+    </div>
+
+    <div class="public-hero__stats">
+      <div class="public-stat">
+        <div class="public-stat__value">{{ total_equipos }}</div>
+        <div class="public-stat__label">Equipos registrados</div>
+      </div>
+
+      <div class="public-stat">
+        <div class="public-stat__value">{{ estados_publicos|length }}</div>
+        <div class="public-stat__label">Estados</div>
+      </div>
+
+      <div class="public-stat">
+        <div class="public-stat__value">{{ tipos_publicos|length }}</div>
+        <div class="public-stat__label">Tipos</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENIDO -->
+  <main id="modulo-publico" class="public-main">
+
+    <!-- FILTROS -->
+    <section class="public-grid">
+      <article class="card">
+        <div class="card-hdr">
+          <span class="card-ttl">🔎 Búsqueda y filtros</span>
+        </div>
+
+        <div class="card-body">
+          <div class="public-filters">
+
+            <input id="pub-q" class="fc" type="text"
+              placeholder="Buscar por código, nombre, marca o modelo">
+
+            <select id="pub-tipo" class="fc">
+              <option value="">Todos los tipos</option>
+              {% for t in tipos_filtro %}
+              <option value="{{ t }}">{{ t }}</option>
+              {% endfor %}
+            </select>
+
+            <select id="pub-area" class="fc">
+              <option value="">Todas las áreas</option>
+              {% for a in areas_filtro %}
+              <option value="{{ a }}">{{ a }}</option>
+              {% endfor %}
+            </select>
+
+            <select id="pub-estado" class="fc">
+              <option value="">Todos los estados</option>
+              <option value="Disponible">Disponible</option>
+              <option value="En uso">En uso</option>
+              <option value="En mantenimiento">En mantenimiento</option>
+              <option value="Fuera de servicio">Fuera de servicio</option>
+            </select>
+
+            <button class="btn btn-primary" onclick="loadPublicTable()">Buscar</button>
+            <button class="btn btn-secondary" onclick="resetPublicFilters()">Limpiar</button>
+
+          </div>
+        </div>
+      </article>
+
+      <!-- RESUMEN -->
+      <article class="card">
+        <div class="card-hdr">
+          <span class="card-ttl">📊 Resumen por estado</span>
+        </div>
+
+        <div class="card-body public-mini-metrics">
+          {% for e in estados_publicos %}
+          <div class="mini-metric">
+            <strong>{{ e.total }}</strong>
+            <span>{{ e.estado_equipo }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </article>
+    </section>
+
+    <!-- TABLA + MAPA -->
+    <section class="public-grid public-grid--2">
+
+      <article class="card">
+        <div class="card-hdr">
+          <span class="card-ttl">📋 Equipos</span>
+          <span id="pub-count" class="pill">0 resultados</span>
+        </div>
+
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Equipo</th>
+                <th>Marca / Modelo</th>
+                <th>Tipo</th>
+                <th>Área</th>
+                <th>Ubicación</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="pub-table-body">
+              <tr>
+                <td colspan="7">Cargando datos...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <!-- MAPA -->
+      <article class="card">
+        <div class="card-hdr">
+          <span class="card-ttl">🗺 Mapa</span>
+        </div>
+
+        <div class="card-body">
+          <div id="hospital-map" style="width:100%; height:420px; border-radius:16px;"></div>
+        </div>
+      </article>
+
+    </section>
+
+    <!-- GRÁFICAS -->
+    <section class="public-grid public-grid--2">
+
+      <article class="card">
+        <div class="card-hdr">
+          <span class="card-ttl">📈 Equipos por estado</span>
+        </div>
+
+        <div class="card-body">
+          {% for e in estados_publicos %}
+          <div class="chart-row">
+            <span>{{ e.estado_equipo }}</span>
+            <div class="chart-row__bar">
+              <div style="width: {{ ((e.total / total_equipos)*100)|int if total_equipos else 0 }}%"></div>
+            </div>
+            <strong>{{ e.total }}</strong>
+          </div>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-hdr">
+          <span class="card-ttl">📉 Equipos por tipo</span>
+        </div>
+
+        <div class="card-body">
+          {% for t in tipos_publicos %}
+          <div class="chart-row">
+            <span>{{ t.tipo_equipo }}</span>
+            <div class="chart-row__bar">
+              <div style="width: {{ ((t.total / total_equipos)*100)|int if total_equipos else 0 }}%"></div>
+            </div>
+            <strong>{{ t.total }}</strong>
+          </div>
+          {% endfor %}
+        </div>
+      </article>
+
+    </section>
+
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  loadPublicTable();
+});
+</script>
+
+<script>
+let hospitalMap;
+let hospitalMarkers = [];
+
+async function initHospitalMap() {
+  const { Map, InfoWindow } = await google.maps.importLibrary("maps");
+  const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+
+  hospitalMap = new Map(document.getElementById("hospital-map"), {
+    center: { lat: 25.6866, lng: -100.3161 },
+    zoom: 16,
+    mapId: "DEMO_MAP_ID"
+  });
+
+  const infoWindow = new InfoWindow();
+
+  try {
+    const resp = await fetch("/api/public/equipos-mapa");
+    const json = await resp.json();
+
+    if (!json.ok || !json.data?.length) return;
+
+    hospitalMarkers.forEach(m => m.map = null);
+    hospitalMarkers = [];
+
+    const bounds = new google.maps.LatLngBounds();
+
+    json.data.forEach(eq => {
+      const position = {
+        lat: Number(eq.latitud),
+        lng: Number(eq.longitud)
+      };
+
+      const marker = new AdvancedMarkerElement({
+        map: hospitalMap,
+        position,
+        title: `${eq.codigo_interno} - ${eq.nombre_equipo}`
+      });
+
+      marker.addListener("click", () => {
+        infoWindow.setContent(`
+          <div style="min-width:220px">
+            <strong>${eq.nombre_equipo}</strong><br>
+            <small>${eq.codigo_interno}</small><br><br>
+            <b>Estado:</b> ${eq.estado_equipo}<br>
+            <b>Área:</b> ${eq.area}<br>
+            <b>Ubicación:</b> ${eq.nombre_ubicacion}<br>
+            <b>Marca / Modelo:</b> ${eq.marca} / ${eq.modelo}<br>
+            <b>Última señal GPS:</b> ${eq.fecha_evento_gps}
+          </div>
+        `);
+        infoWindow.open({
+          map: hospitalMap,
+          anchor: marker
+        });
+      });
+
+      hospitalMarkers.push(marker);
+      bounds.extend(position);
+    });
+
+    hospitalMap.fitBounds(bounds);
+
+  } catch (err) {
+    console.error("Error cargando mapa:", err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadPublicTable();
+  initHospitalMap();
+});
+</script>
+
+<script>
+  (g => {
+    var h, a, k, p = "The Google Maps JavaScript API", c = "google", l = "importLibrary", q = "__ib__", m = document, b = window;
+    b = b[c] || (b[c] = {});
+    var d = b.maps || (b.maps = {}), r = new Set, e = new URLSearchParams,
+      u = () => h || (h = new Promise(async (f, n) => {
+        await (a = m.createElement("script"));
+        e.set("key", "AIzaSyCx3Re1ZDzm91TRdOgoBJ6kCF_G_hTGdfk");
+        e.set("v", "weekly");
+        e.set("callback", c + ".maps." + q);
+        a.src = `https://maps.${c}apis.com/maps/api/js?` + e;
+        d[q] = f;
+        a.onerror = () => h = n(Error(p + " no pudo cargar."));
+        a.nonce = m.querySelector("script[nonce]")?.nonce || "";
+        m.head.append(a);
+      }));
+    d[l] ? console.warn(p + " ya fue cargada.") : d[l] = (f, ...n) => r.add(f) && u().then(() => d[l](f, ...n));
+  })();
+</script>
+{% endblock %}

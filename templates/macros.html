@@ -1,0 +1,89 @@
+{# macros.html #}
+
+{% macro flash_msgs() %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flash-list">
+    {% for cat, msg in messages %}
+      <div class="flash-msg {{ cat }}">
+        <span>
+          {% if cat == 'success' %}
+            ✅
+          {% elif cat == 'error' %}
+            ❌
+          {% elif cat == 'warning' %}
+            ⚠️
+          {% else %}
+            ℹ️
+          {% endif %}
+        </span>
+        {{ msg }}
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+{% endmacro %}
+
+
+{% macro estado_badge(e) %}
+{% set m = {
+  'Disponible':'b-green',
+  'En uso':'b-teal',
+  'En mantenimiento':'b-amber',
+  'Fuera de servicio':'b-red',
+  'Reservado':'b-blue',
+  'En traslado':'b-blue',
+  'Dañado':'b-red',
+  'Calibración':'b-amber',
+  'Limpieza':'b-amber',
+  'Inactivo':'b-gray'
+} %}
+<span class="badge {{ m.get(e,'b-gray') }}">
+  <span class="bdot"></span>{{ e or '—' }}
+</span>
+{% endmacro %}
+
+
+{% macro resultado_badge(r) %}
+{% set m = {
+  'Exitoso':'b-green',
+  'Sin falla':'b-green',
+  'Fallido':'b-red',
+  'Parcial':'b-amber',
+  'Requiere refacción':'b-amber',
+  'Reemplazo necesario':'b-red',
+  'Pendiente':'b-gray',
+  'Reprogramado':'b-blue',
+  'Cancelado':'b-gray',
+  'En proceso':'b-blue'
+} %}
+<span class="badge {{ m.get(r,'b-gray') }}">
+  {{ r or '—' }}
+</span>
+{% endmacro %}
+
+
+{% macro rol_badge(r) %}
+{% set m = {
+  'Admin':'b-purple',
+  'Medico':'b-teal',
+  'Médico':'b-teal',
+  'Enfermero':'b-green',
+  'Biomedico':'b-amber',
+  'Biomédico':'b-amber',
+  'Responsable Area':'b-blue',
+  'Responsable':'b-blue'
+} %}
+<span class="badge {{ m.get(r,'b-gray') }}">
+  {{ r or '—' }}
+</span>
+{% endmacro %}
+
+
+{% macro bar_h(val, mx, color='var(--teal)') %}
+{% set p = ((val/(mx or 1))*100)|int %}
+<div class="pr">
+  <div class="prf" style="width:{{ [p,3]|max }}%; background:{{ color }}"></div>
+</div>
+{% endmacro %}

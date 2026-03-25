@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+{% from 'macros.html' import flash_msgs, estado_badge, bar_h %}
+{% block title %}HospitalIoT — Enfermería{% endblock %}
+
+{% block body %}
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-top">
+      <div class="sb-brand"><span class="sb-dot" style="background:#86efac"></span><span class="sb-name">HospitalIoT</span></div>
+      <div class="sb-badge" style="background:rgba(4,120,87,.25);color:#6ee7b7">💉 Enfermería</div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sbn-sec">Mi área</div>
+      <button class="sbn-item" data-view="v-dash"       onclick="goTo('v-dash')"><span class="sbn-ic">📊</span>Estado del área</button>
+      <button class="sbn-item" data-view="v-reportes"   onclick="goTo('v-reportes')"><span class="sbn-ic">📈</span>Reportes</button>
+      <button class="sbn-item" data-view="v-equipos"    onclick="goTo('v-equipos')"><span class="sbn-ic">🔬</span>Equipos del sistema</button>
+      <div class="sbn-sec">Registros</div>
+      <button class="sbn-item" data-view="v-movimiento" onclick="goTo('v-movimiento')"><span class="sbn-ic">🔄</span>Registrar movimiento</button>
+      <button class="sbn-item" data-view="v-uso"        onclick="goTo('v-uso')"><span class="sbn-ic">📋</span>Registrar uso clínico</button>
+      <div class="sbn-sec">Historial</div>
+      <button class="sbn-item" data-view="v-historial"  onclick="goTo('v-historial')"><span class="sbn-ic">📜</span>Historial del área</button>
+    </nav>
+    <div class="sb-foot">
+      <div class="sb-uname">{{ session.nombre }}</div>
+      <div class="sb-urole">Enfermero/a</div>
+      <a href="{{ url_for('logout') }}" class="sb-logout">← Cerrar sesión</a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title">Panel de Enfermería</div>
+        <div class="topbar-sub">{{ session.nombre }} · Control de equipos y movimientos</div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-primary btn-sm" onclick="goTo('v-movimiento')">+ Registrar movimiento</button>
+      </div>
+    </div>
+
+    <div class="content">
+      {{ flash_msgs() }}
+
+      <!-- ══ DASHBOARD ══ -->
+      <section id="v-dash" class="view">
+        <div class="phdr"><div><div class="ptitle">Estado del <em>Área</em></div><div class="psub">Visión general del estado de equipos</div></div></div>
+        <div class="stats">
+          {% set disp = equipos|selectattr('estado_equipo','equalto','Disponible')|list %}
+          {% set en_uso = equipos|selectattr('estado_equipo','equalto','En uso')|list %}
+          {% set mant = equipos|selectattr('estado_equipo','equalto','En mantenimiento')|list %}
+          <div class="stat" style="--sc:var(--green)"><div class="st-ico">✅</div><div class="st-label">Disponibles</div><div class="st-val">{{ disp|length }}</div></div>
+          <div class="stat" style="--sc:var(--teal)"><div class="st-ico">▶️</div><div class="st-label">En uso</div><div class="st-val">{{ en_uso|length }}</div></div>
+          <div class="stat" style="--sc:var(--amber)"><div class="st-ico">🔧</div><div class="st-label">Mantenimiento</div><div class="st-val">{{ mant|length }}</div></div>
+          <div class="stat" style="--sc:var(--blue)"><div class="st-ico">🔄</div><div class="st-label">Mis movimientos</div><div class="st-val">{{ mis_movs|length }}</div></div>
+        </div>
+        <div class="two">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🔬 Estado de equipos</span></div>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Equipo</th><th>Estado</th><th>Área</th></tr></thead>
+              <tbody>
+                {% for e in equipos[:8] %}
+                <tr>
+                  <td><strong>{{ e.nombre_equipo }}</strong></td>
+                  <td>{{ estado_badge(e.estado_equipo) }}</td>
+                  <td>{{ e.area }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🔄 Mis movimientos recientes</span></div>
+            <div class="card-body">
+              {% if mis_movs %}
+              <div class="tl">
+                {% for m in mis_movs[:5] %}
+                <div class="tl-it">
+                  <div class="tl-dot tl-teal"></div>
+                  <div class="tl-t">{{ m.nombre_equipo }}</div>
+                  <div class="tl-s"><span class="badge b-teal" style="font-size:9px">{{ m.tipo_movimiento }}</span> {{ m.origen }} → {{ m.destino }}<br><span class="mono">{{ m.fecha_movimiento.strftime('%d/%m %H:%M') if m.fecha_movimiento else '—' }}</span></div>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}<div class="empty">Sin movimientos registrados</div>{% endif %}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ REPORTES ══ -->
+      <section id="v-reportes" class="view">
+        <div class="phdr">
+          <div><div class="ptitle">Reportes <em>Operativos</em></div><div class="psub">Métricas de movimientos y estado de equipos del hospital</div></div>
+          <div style="display:flex;gap:8px"><span class="pill">📊 Chart.js 4</span><span class="pill">🔄 Datos en vivo</span></div>
+        </div>
+
+        <div class="rpt-kpi-grid">
+          <div class="rpt-kpi" style="--kc:var(--teal)">
+            <div class="rpt-kpi-icon">🔄</div>
+            <div class="rpt-kpi-val">{{ mis_movs|length }}</div>
+            <div class="rpt-kpi-label">Mis movimientos registrados</div>
+            <div class="rpt-kpi-sub">Registrados por ti</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--teal);width:{{ [mis_movs|length * 10, 100]|min }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--green)">
+            <div class="rpt-kpi-icon">✅</div>
+            <div class="rpt-kpi-val">{{ equipos|selectattr('estado_equipo','equalto','Disponible')|list|length }}</div>
+            <div class="rpt-kpi-label">Equipos disponibles</div>
+            <div class="rpt-kpi-sub">En el sistema ahora</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--green);width:{{ ((equipos|selectattr('estado_equipo','equalto','Disponible')|list|length / (equipos|length or 1))*100)|int }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--blue)">
+            <div class="rpt-kpi-icon">🏥</div>
+            <div class="rpt-kpi-val">{{ rpt_movs_area|length }}</div>
+            <div class="rpt-kpi-label">Áreas con actividad</div>
+            <div class="rpt-kpi-sub">Áreas con movimientos</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--blue);width:{{ [rpt_movs_area|length * 10, 100]|min }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--purple)">
+            <div class="rpt-kpi-icon">📋</div>
+            <div class="rpt-kpi-val">{{ historial_usos|length }}</div>
+            <div class="rpt-kpi-label">Usos clínicos recientes</div>
+            <div class="rpt-kpi-sub">En el sistema (últimos 20)</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--purple);width:{{ [historial_usos|length * 5, 100]|min }}%"></div></div>
+          </div>
+        </div>
+
+        <div class="rpt-section-label"><span class="rpt-section-tag">// gráficas</span>Datos reales de BD</div>
+
+        <div class="rpt-charts-grid">
+          <div class="card">
+            <div class="card-hdr">
+              <span class="card-ttl">📊 Movimientos por área hospitalaria</span>
+              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:rgba(14,116,144,.85)"></span>Movimientos</span>
+            </div>
+            <div class="card-body rpt-chart-body"><canvas id="chart-movs-area"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr">
+              <span class="card-ttl">🥧 Estado actual de equipos</span>
+              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:var(--green)"></span>Disp. &nbsp;<span class="rpt-leg-dot" style="background:var(--teal)"></span>Uso &nbsp;<span class="rpt-leg-dot" style="background:var(--amber)"></span>Mant.</span>
+            </div>
+            <div class="card-body rpt-chart-body"><canvas id="chart-estados-enf"></canvas></div>
+          </div>
+        </div>
+
+        <div class="rpt-section-label"><span class="rpt-section-tag">// frecuencia</span>Por tipo de movimiento</div>
+
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">🔄 Frecuencia por tipo de movimiento del sistema</span></div>
+          <div class="card-body">
+            {% set mx_f = rpt_freq_tipo_mov[0].total if rpt_freq_tipo_mov else 1 %}
+            {% for r in rpt_freq_tipo_mov %}
+            <div class="rpt-freq-row">
+              <span class="badge b-teal" style="min-width:140px;justify-content:flex-start;font-size:10px">{{ r.tipo_movimiento }}</span>
+              <div class="pr" style="flex:1;margin:0 10px"><div class="prf" style="width:{{ [((r.total/mx_f)*100)|int,3]|max }}%;background:var(--teal);opacity:.75"></div></div>
+              <span style="font-size:10px;color:var(--tx3)">{{ r.total }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ EQUIPOS ══ -->
+      <section id="v-equipos" class="view">
+        <div class="phdr"><div><div class="ptitle">Equipos del <em>Sistema</em></div><div class="psub">{{ equipos|length }} equipos médicos registrados</div></div></div>
+        <div class="card">
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Código</th><th>Equipo</th><th>Estado</th><th>Área</th><th>Ubicación</th></tr></thead>
+            <tbody>
+              {% for e in equipos %}
+              <tr>
+                <td><span class="cod">{{ e.codigo_interno }}</span></td>
+                <td><strong>{{ e.nombre_equipo }}</strong></td>
+                <td>{{ estado_badge(e.estado_equipo) }}</td>
+                <td>{{ e.area }}</td><td>{{ e.nombre_ubicacion }}</td>
+              </tr>
+              {% else %}<tr><td colspan="5" class="empty">Sin equipos</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ══ REGISTRAR MOVIMIENTO ══ -->
+      <section id="v-movimiento" class="view">
+        <div class="phdr"><div><div class="ptitle">Registrar <em>Movimiento</em></div><div class="psub">Documenta el traslado o reubicación de un equipo</div></div></div>
+        <div class="card" style="max-width:580px">
+          <div class="card-hdr"><span class="card-ttl">🔄 Nuevo movimiento de equipo</span></div>
+          <div class="card-body">
+            <form method="POST" action="{{ url_for('enfermero_mov') }}">
+              <div class="fg"><label class="fl">Equipo</label>
+                <select class="fc" name="id_equipo" required>
+                  <option value="">Seleccionar equipo…</option>
+                  {% for e in todos_equipos %}<option value="{{ e.id_equipo }}">{{ e.codigo_interno }} — {{ e.nombre_equipo }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Tipo de movimiento</label>
+                <select class="fc" name="id_tipo_movimiento" required>
+                  <option value="">Seleccionar tipo…</option>
+                  {% for t in tipos_mov %}<option value="{{ t.id_tipo_movimiento }}">{{ t.tipo_movimiento }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="frow">
+                <div class="fg"><label class="fl">Ubicación origen</label>
+                  <select class="fc" name="id_ubicacion_origen" required>
+                    <option value="">Seleccionar…</option>
+                    {% for u in ubicaciones %}<option value="{{ u.id_ubicacion }}">{{ u.nombre_ubicacion }}</option>{% endfor %}
+                  </select>
+                </div>
+                <div class="fg"><label class="fl">Ubicación destino</label>
+                  <select class="fc" name="id_ubicacion_destino" required>
+                    <option value="">Seleccionar…</option>
+                    {% for u in ubicaciones %}<option value="{{ u.id_ubicacion }}">{{ u.nombre_ubicacion }}</option>{% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div class="fg"><label class="fl">Observación</label><input class="fc" name="observacion" placeholder="Motivo del movimiento…"></div>
+              <div class="fg"><label class="fl">Responsable</label><input class="fc" value="{{ session.nombre }}" readonly></div>
+              <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">🔄 Registrar movimiento</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ USO CLÍNICO ══ -->
+      <section id="v-uso" class="view">
+        <div class="phdr"><div><div class="ptitle">Registrar <em>Uso Clínico</em></div></div></div>
+        <div class="card" style="max-width:520px">
+          <div class="card-hdr"><span class="card-ttl">📋 Nuevo registro de uso</span></div>
+          <div class="card-body">
+            <form method="POST" action="{{ url_for('enfermero_uso') }}">
+              <div class="fg"><label class="fl">Equipo</label>
+                <select class="fc" name="id_equipo" required>
+                  <option value="">Seleccionar equipo…</option>
+                  {% for e in todos_equipos %}<option value="{{ e.id_equipo }}">{{ e.codigo_interno }} — {{ e.nombre_equipo }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Responsable</label><input class="fc" value="{{ session.nombre }}" readonly></div>
+              <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">✅ Registrar uso clínico</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ HISTORIAL ══ -->
+      <section id="v-historial" class="view">
+        <div class="phdr"><div><div class="ptitle">Historial del <em>Área</em></div></div></div>
+        <div class="two">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🔄 Mis movimientos registrados</span></div>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Equipo</th><th>Tipo</th><th>Origen → Destino</th><th>Fecha</th><th>Acción</th></tr></thead>
+              <tbody>
+                {% for m in mis_movs %}
+                <tr>
+                  <td><strong>{{ m.nombre_equipo }}</strong></td>
+                  <td><span class="badge b-teal">{{ m.tipo_movimiento }}</span></td>
+                  <td>{{ m.origen }} → {{ m.destino }}</td>
+                  <td><span class="mono">{{ m.fecha_movimiento.strftime('%d/%m %H:%M') if m.fecha_movimiento else '—' }}</span></td>
+                  <td>
+                    <form method="POST" action="{{ url_for('enfermero_eliminar_mov', id_mov=m.id_movimiento) }}">
+                      <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar este movimiento?')">🗑</button>
+                    </form>
+                  </td>
+                </tr>
+                {% else %}<tr><td colspan="5" class="empty">Sin movimientos registrados</td></tr>{% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">📋 Usos clínicos del sistema</span></div>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Equipo</th><th>Persona</th><th>Fecha</th></tr></thead>
+              <tbody>
+                {% for u in historial_usos %}
+                <tr>
+                  <td><strong>{{ u.nombre_equipo }}</strong><br><span class="cod">{{ u.codigo_interno }}</span></td>
+                  <td>{{ u.persona }}</td>
+                  <td><span class="mono">{{ u.fecha_uso.strftime('%d/%m %H:%M') if u.fecha_uso else '—' }}</span></td>
+                </tr>
+                {% else %}<tr><td colspan="3" class="empty">Sin historial</td></tr>{% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+const movsAreaData  = {{ rpt_movs_area | tojson }};
+const estadosEnfData= {{ rpt_estados | tojson }};
+
+Chart.defaults.font.family = "'Outfit', sans-serif";
+Chart.defaults.color = '#8fa3b8';
+Chart.defaults.borderColor = 'rgba(221,229,238,.4)';
+
+document.addEventListener('DOMContentLoaded', () => {
+  const palette = ['rgba(14,116,144,.8)','rgba(29,78,216,.75)','rgba(109,40,217,.75)','rgba(4,120,87,.75)','rgba(180,83,9,.75)','rgba(185,28,28,.75)','rgba(12,74,110,.8)','rgba(4,120,87,.6)','rgba(29,78,216,.5)','rgba(109,40,217,.5)'];
+
+  const ctx1 = document.getElementById('chart-movs-area');
+  if (ctx1 && movsAreaData.length > 0) {
+    new Chart(ctx1, {
+      type: 'bar',
+      data: {
+        labels: movsAreaData.map(r => r.area),
+        datasets: [{ label: 'Movimientos', data: movsAreaData.map(r => r.total_movs), backgroundColor: movsAreaData.map((_,i) => palette[i % palette.length]), borderRadius: 4, borderSkipped: false }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } }, y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } } }
+      }
+    });
+  }
+
+  const ctx2 = document.getElementById('chart-estados-enf');
+  if (ctx2 && estadosEnfData.length > 0) {
+    const colE = {'Disponible':'#047857','En uso':'#0e7490','En mantenimiento':'#b45309','Fuera de servicio':'#b91c1c'};
+    new Chart(ctx2, {
+      type: 'doughnut',
+      data: {
+        labels: estadosEnfData.map(r => r.estado_equipo),
+        datasets: [{ data: estadosEnfData.map(r => r.total), backgroundColor: estadosEnfData.map(r => colE[r.estado_equipo]||'#8fa3b8'), borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'right', labels: { font: { size: 10 }, padding: 8, boxWidth: 10 } } } }
+    });
+  }
+});
+</script>
+{% endblock %}
