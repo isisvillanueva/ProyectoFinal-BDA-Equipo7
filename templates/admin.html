@@ -1,597 +1,1490 @@
-{% extends "base.html" %}
-{% from 'macros.html' import flash_msgs, estado_badge, resultado_badge, rol_badge, bar_h %}
-{% block title %}HospitalIoT — Administrador{% endblock %}
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HospitalIoT — Panel Administrador</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;1,8..60,300&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <script src="https://code.highcharts.com/highcharts.js"></script>
+  <style>
+    .tbl-actions { display:flex; gap:6px; align-items:center; }
+    .btn-icon { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:6px; border:1px solid; cursor:pointer; font-size:13px; transition:all .13s; background:none; flex-shrink:0; }
+    .btn-icon-edit   { border-color:#fde68a; color:#b45309; background:#fef9ee; }
+    .btn-icon-edit:hover   { background:#fef3c7; border-color:#f59e0b; }
+    .btn-icon-del    { border-color:#fecaca; color:#b91c1c; background:#fff5f5; }
+    .btn-icon-del:hover    { background:#fee2e2; border-color:#f87171; }
+    .rol-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-bottom:20px; }
+    .rol-card { background:var(--surface); border:1px solid var(--border); border-top:3px solid var(--rc,var(--teal)); border-radius:var(--r); padding:16px 14px; position:relative; overflow:hidden; box-shadow:var(--sh-sm); }
+    .rol-card::after { content:''; position:absolute; right:-14px; bottom:-14px; width:64px; height:64px; border-radius:50%; background:var(--rc,var(--teal)); opacity:.07; }
+    .rol-card-lbl { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:var(--tx3); }
+    .rol-card-val { font-size:30px; font-weight:800; color:var(--rc,var(--teal)); line-height:1; margin:6px 0 2px; }
+    .rol-card-sub { font-size:10px; color:var(--tx3); }
+    .dash-recent { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+    @media(max-width:900px){ .dash-recent { grid-template-columns:1fr; } }
+    .dash-alert { display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--red-l); border:1px solid #fecaca; border-left:3px solid var(--red); border-radius:var(--r-sm); margin-bottom:12px; font-size:12.5px; color:var(--red); }
+    .dash-alert.warn { background:var(--amber-l); border-color:#fde68a; border-left-color:var(--amber); color:var(--amber); }
+    .tbl-search { padding:7px 11px; border:1.5px solid var(--border); border-radius:var(--r-sm); background:var(--surface); color:var(--tx); font-size:12.5px; font-family:var(--f1); outline:none; width:220px; transition:border-color .15s, box-shadow .15s; }
+    .tbl-search:focus { border-color:var(--teal); box-shadow:0 0 0 3px rgba(14,116,144,.1); }
+    .view-header-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    
+    .confirm-modal .modal { max-width:420px; }
+    .confirm-modal .modal-icon { font-size:36px; text-align:center; margin-bottom:8px; }
+    .confirm-modal .modal-body { font-size:13px; color:var(--tx2); line-height:1.6; }
+    .confirm-modal .modal-detail { background:var(--surf2); border:1px solid var(--border); border-radius:var(--r-sm); padding:10px 12px; font-size:12px; color:var(--tx2); margin:12px 0; }
+    .confirm-modal .modal-detail strong { color:var(--tx); }
+    
+    .badge-transito   { background:var(--amber-l); color:var(--amber); border:1px solid #fde68a; padding:2px 9px; border-radius:20px; font-size:10.5px; font-weight:600; }
+    .badge-completado { background:var(--green-l);  color:var(--green);  border:1px solid #bbf7d0; padding:2px 9px; border-radius:20px; font-size:10.5px; font-weight:600; }
+  </style>
+</head>
+<body>
+{% from 'macros.html' import flash_msgs, resultado_badge, estado_badge %}
 
-{% block body %}
 <div class="app">
+
+  <!-- Flash global: visible en cualquier vista activa -->
+  <div id="flash-global" style="position:fixed;top:16px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:380px;">
+    {{ flash_msgs() }}
+  </div>
+
+  <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sb-top">
-      <div class="sb-brand"><span class="sb-dot" style="background:#6ee7b7"></span><span class="sb-name">HospitalIoT</span></div>
-      <div class="sb-badge" style="background:rgba(167,139,250,.2);color:#c4b5fd">🛡 Administrador</div>
+      <div class="sb-brand"><span class="sb-dot"></span><span class="sb-name">HospitalIoT</span></div>
+      <div class="sb-badge">🛡 Administrador</div>
     </div>
     <nav class="sb-nav">
       <div class="sbn-sec">Principal</div>
-      <button class="sbn-item" data-view="v-dash"     onclick="goTo('v-dash')"><span class="sbn-ic">📊</span>Dashboard</button>
-      <button class="sbn-item" data-view="v-reportes" onclick="goTo('v-reportes')"><span class="sbn-ic">📈</span>Reportes &amp; Gráficas</button>
+      <button class="sbn-item" data-view="v-dash"><span class="sbn-ic">📊</span>Dashboard</button>
+      <button class="sbn-item" data-view="v-reportes"><span class="sbn-ic">📈</span>Reportes</button>
+      <a class="sbn-item" href="{{ url_for('admin_iot') }}"><span class="sbn-ic">📡</span>Gestión IoT</a>
       <div class="sbn-sec">Inventario</div>
-      <button class="sbn-item" data-view="v-equipos"  onclick="goTo('v-equipos')"><span class="sbn-ic"></span>Equipos</button>
-      <button class="sbn-item" data-view="v-usuarios" onclick="goTo('v-usuarios')"><span class="sbn-ic"></span>Usuarios</button>
-      <div class="sbn-sec">Operaciones</div>
-      <button class="sbn-item" data-view="v-asig"     onclick="goTo('v-asig')"><span class="sbn-ic"></span>Asignaciones</button>
-      <button class="sbn-item" data-view="v-movs"     onclick="goTo('v-movs')"><span class="sbn-ic"></span>Movimientos</button>
-      <button class="sbn-item" data-view="v-mants"    onclick="goTo('v-mants')"><span class="sbn-ic">🔧</span>Mantenimientos</button>
+      <button class="sbn-item" data-view="v-equipos"><span class="sbn-ic">🔬</span>Equipos</button>
+      <button class="sbn-item" data-view="v-asig"><span class="sbn-ic">📌</span>Asignaciones</button>
+      <button class="sbn-item" data-view="v-movs"><span class="sbn-ic">🔄</span>Movimientos</button>
+      <button class="sbn-item" data-view="v-mants"><span class="sbn-ic">🔧</span>Mantenimientos</button>
+      <button class="sbn-item" data-view="v-traslados"><span class="sbn-ic">🚑</span>Traslados</button>
+      <div class="sbn-sec">Administración</div>
+      <button class="sbn-item" data-view="v-usuarios"><span class="sbn-ic">👥</span>Usuarios</button>
+      <button class="sbn-item" data-view="v-auditoria"><span class="sbn-ic">🔍</span>Auditoría</button>
     </nav>
     <div class="sb-foot">
       <div class="sb-uname">{{ session.nombre }}</div>
-      <div class="sb-urole">{{ session.username }}</div>
+      <div class="sb-urole">Administrador · Sistema</div>
       <a href="{{ url_for('logout') }}" class="sb-logout">← Cerrar sesión</a>
     </div>
   </aside>
 
-  <div class="main">
-    <div class="topbar">
-      <div class="topbar-left">
-        <div class="topbar-title">Panel de Administración</div>
-        <div class="topbar-sub">HospitalIoT · Gestión completa del sistema</div>
-      </div>
-      <div class="topbar-right">
-        <button class="btn btn-primary btn-sm" onclick="openModal('modal-equipo')">+ Nuevo equipo</button>
-        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-asignar')">+ Asignar</button>
-      </div>
-    </div>
+  <main class="main" id="iot-panel-root">
 
-    <div class="content">
-      {{ flash_msgs() }}
-
-      <!-- ══ DASHBOARD ══ -->
-      <section id="v-dash" class="view">
-        <div class="phdr"><div><div class="ptitle">Dashboard <em>General</em></div><div class="psub">Visión operativa en tiempo real</div></div></div>
-        <div class="stats">
-          <div class="stat" style="--sc:var(--teal)"><div class="st-ico"></div><div class="st-label">Equipos</div><div class="st-val">{{ total_eq }}</div><div class="st-sub">en inventario</div></div>
-          <div class="stat" style="--sc:var(--green)"><div class="st-ico">✅</div><div class="st-label">Disponibles</div><div class="st-val">{{ estados.get('Disponible',0) }}</div></div>
-          <div class="stat" style="--sc:var(--blue)"><div class="st-ico">▶️</div><div class="st-label">En uso</div><div class="st-val">{{ estados.get('En uso',0) }}</div></div>
-          <div class="stat" style="--sc:var(--amber)"><div class="st-ico">🔧</div><div class="st-label">Mantenimiento</div><div class="st-val">{{ estados.get('En mantenimiento',0) }}</div></div>
-          <div class="stat" style="--sc:var(--red)"><div class="st-ico">⚠️</div><div class="st-label">Fuera servicio</div><div class="st-val">{{ estados.get('Fuera de servicio',0) }}</div></div>
-          <div class="stat" style="--sc:var(--purple)"><div class="st-ico">🔄</div><div class="st-label">Movimientos</div><div class="st-val">{{ total_mov }}</div></div>
-          <div class="stat" style="--sc:var(--teal-d)"><div class="st-ico">👥</div><div class="st-label">Usuarios</div><div class="st-val">{{ total_usr }}</div></div>
-          <div class="stat" style="--sc:var(--green)"><div class="st-ico"></div><div class="st-label">Mantenimientos</div><div class="st-val">{{ total_mant }}</div></div>
+    <!-- VISTA 1: DASHBOARD -->
+    <section id="v-dash" class="view act active">
+      <div class="topbar">
+        <div class="topbar-left">
+          <div class="topbar-title">Panel de Administración</div>
+          <div class="topbar-sub">HospitalIoT · Control total del sistema</div>
         </div>
-        <div class="two">
+        <div class="topbar-right view-header-actions">
+          <button class="btn btn-primary btn-sm" onclick="openModal('m-nuevo-equipo')">+ Equipo</button>
+          <button class="btn btn-secondary btn-sm" onclick="openModal('m-nueva-asig')">+ Asignar</button>
+          <button class="btn btn-secondary btn-sm" onclick="openModal('m-nuevo-traslado')">🚑 Préstamo</button>
+          <span id="last-refresh" class="ts-dim">Actualizado ahora</span>
+        </div>
+      </div>
+      <div class="content">
+        {% if total_disc is defined and total_disc > 0 %}
+        <div class="dash-alert">🚨 <strong>{{ total_disc }} discrepancia(s) IoT activa(s)</strong> — equipos con ubicación inconsistente.
+          <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="goTo('v-iot')">Ver ahora</button></div>
+        {% endif %}
+        {% if total_sin_evidencia is defined and total_sin_evidencia > 0 %}
+        <div class="dash-alert warn">📵 <strong>{{ total_sin_evidencia }} equipo(s) sin señal IoT</strong> en las últimas 12 h.
+          <button class="btn btn-amber btn-sm" style="margin-left:auto" onclick="goTo('v-iot')">Revisar</button></div>
+        {% endif %}
+
+        <!-- KPIs principales -->
+        <div class="stats">
+          <div class="stat" style="--sc:var(--green)">
+            <span class="st-ico">🔬</span>
+            <div class="st-label">Equipos activos</div>
+            <div class="st-val">{{ total_eq }}</div>
+            <div class="st-sub">en inventario</div>
+          </div>
+          <div class="stat" style="--sc:var(--blue)">
+            <span class="st-ico">🔄</span>
+            <div class="st-label">Movimientos</div>
+            <div class="st-val">{{ total_mov }}</div>
+            <div class="st-sub">totales registrados</div>
+          </div>
+          <div class="stat" style="--sc:var(--teal)">
+            <span class="st-ico">👥</span>
+            <div class="st-label">Usuarios</div>
+            <div class="st-val">{{ total_usr }}</div>
+            <div class="st-sub">registrados</div>
+          </div>
+          <div class="stat" style="--sc:var(--amber)">
+            <span class="st-ico">🔧</span>
+            <div class="st-label">Mantenimientos</div>
+            <div class="st-val">{{ total_mant }}</div>
+            <div class="st-sub">historial acumulado</div>
+          </div>
+          <div class="stat" style="--sc:{% if total_disc is defined and total_disc > 0 %}var(--red){% else %}var(--green){% endif %}">
+            <span class="st-ico">📡</span>
+            <div class="st-label">Discrepancias IoT</div>
+            <div class="st-val">{{ total_disc if total_disc is defined else 0 }}</div>
+            <div class="st-sub">ubicaciones inconsistentes</div>
+          </div>
+          <div class="stat" style="--sc:{% if total_sin_evidencia is defined and total_sin_evidencia > 0 %}var(--amber){% else %}var(--green){% endif %}">
+            <span class="st-ico">📵</span>
+            <div class="st-label">Sin señal IoT</div>
+            <div class="st-val">{{ total_sin_evidencia if total_sin_evidencia is defined else 0 }}</div>
+            <div class="st-sub">equipos &gt;12 h sin lectura</div>
+          </div>
+        </div>
+
+        <!-- Estado de inventario -->
+        <div class="section-hdr"><span class="dot dot-blue"></span>Estado de inventario</div>
+        {% if estados %}
+        <div class="iot-grid">
+          {% for nombre, cantidad in estados.items() %}
+          <div class="iot-kpi"><div class="kpi-val">{{ cantidad }}</div><div class="kpi-lbl">{{ nombre }}</div></div>
+          {% endfor %}
+        </div>
+        {% else %}<div class="empty-iot">No hay datos de estados.</div>{% endif %}
+
+        <!-- Cards por rol -->
+        <div class="section-hdr"><span class="dot dot-teal"></span>Usuarios &amp; Roles</div>
+        <div class="rol-cards">
+          {% for rol, color in [('Médico','var(--teal)'),('Enfermero','var(--green)'),('Biomédico','var(--amber)'),('Administrador','var(--blue)'),('Conductor','var(--purple)')] %}
+          <div class="rol-card" style="--rc:{{ color }}">
+            <div class="rol-card-lbl">{{ rol }}s</div>
+            <div class="rol-card-val">{{ usuarios | selectattr('rol_usuario','equalto',rol) | list | length if usuarios is defined else 0 }}</div>
+            <div class="rol-card-sub">registrados</div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- Actividad reciente -->
+        <div class="section-hdr"><span class="dot dot-purple"></span>Actividad reciente</div>
+        <div class="dash-recent">
           <div class="card">
-            <div class="card-hdr"><span class="card-ttl">🔄 Últimos movimientos</span></div>
-            <div class="tbl-wrap"><table class="tbl">
-              <thead><tr><th>Equipo</th><th>Tipo</th><th>Destino</th><th>Fecha</th></tr></thead>
-              <tbody>
-                {% for m in movimientos[:6] %}
+            <div class="card-hdr">
+              <span class="card-ttl">📌 Últimas asignaciones</span>
+              <button class="btn btn-secondary btn-sm" onclick="goTo('v-asig')">Ver todas</button>
+            </div>
+            <div class="tbl-wrap">
+              <table class="iot-tbl">
+                <thead><tr><th>Código</th><th>Equipo</th><th>Asignado a</th><th>Desde</th></tr></thead>
+                <tbody>
+                {% for a in asignaciones[:5] %}
                 <tr>
-                  <td><strong>{{ m.nombre_equipo }}</strong></td>
-                  <td><span class="badge b-teal">{{ m.tipo_movimiento }}</span></td>
-                  <td>{{ m.destino }}</td>
-                  <td><span class="mono">{{ m.fecha_movimiento.strftime('%d/%m %H:%M') if m.fecha_movimiento else '—' }}</span></td>
+                  <td><span class="cod">{{ a.codigo_interno }}</span></td>
+                  <td>{{ a.nombre_equipo }}</td>
+                  <td>{{ a.asignado_a }}</td>
+                  <td class="ts-dim">{{ a.fecha_inicio_asignacion }}</td>
                 </tr>
-                {% else %}<tr><td colspan="4" class="empty">Sin movimientos</td></tr>{% endfor %}
-              </tbody>
-            </table></div>
+                {% else %}<tr><td colspan="4" class="empty-iot">Sin asignaciones activas.</td></tr>
+                {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
           <div class="card">
-            <div class="card-hdr"><span class="card-ttl">⚠️ Equipos con alertas</span></div>
-            <div class="card-body">
-              {% set alertas = equipos|selectattr('estado_equipo','in',['Fuera de servicio','Dañado','En mantenimiento'])|list %}
-              {% for eq in alertas[:5] %}
-              <div class="al {% if eq.estado_equipo in ['Fuera de servicio','Dañado'] %}er{% else %}wn{% endif %}" style="margin-bottom:8px">
-                <span class="al-ic">{% if eq.estado_equipo in ['Fuera de servicio','Dañado'] %}🚨{% else %}🔧{% endif %}</span>
-                <div class="al-b"><strong>{{ eq.nombre_equipo }}</strong><span>{{ eq.area }} · {{ estado_badge(eq.estado_equipo) }}</span></div>
-              </div>
-              {% else %}<div class="empty">✅ Sin alertas activas</div>{% endfor %}
+            <div class="card-hdr">
+              <span class="card-ttl">🔄 Últimos movimientos</span>
+              <button class="btn btn-secondary btn-sm" onclick="goTo('v-movs')">Ver todos</button>
+            </div>
+            <div class="tbl-wrap">
+              <table class="iot-tbl">
+                <thead><tr><th>Código</th><th>Tipo</th><th>Destino</th><th>Fecha</th></tr></thead>
+                <tbody>
+                {% for m in movimientos[:5] %}
+                <tr>
+                  <td><span class="cod">{{ m.codigo_interno }}</span></td>
+                  <td>{{ m.tipo_movimiento }}</td>
+                  <td>{{ m.destino }}</td>
+                  <td class="ts-dim">{{ m.fecha_hora_movimiento }}</td>
+                </tr>
+                {% else %}<tr><td colspan="4" class="empty-iot">Sin movimientos.</td></tr>
+                {% endfor %}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
-      </section>
 
-      <!-- ══ REPORTES ══ -->
-      <section id="v-reportes" class="view">
-        <div class="phdr">
-          <div>
-            <div class="ptitle">Planeación de <em>Reportes</em> &amp; <strong>Visualizaciones</strong></div>
-            <div class="psub">Análisis operativo · Métricas de uso, movimientos y trazabilidad IoT</div>
-          </div>
-          <div style="display:flex;gap:8px"><span class="pill">📊 Chart.js 4</span><span class="pill">🔄 Datos en vivo</span></div>
+        <!-- Accesos rápidos -->
+        <div class="section-hdr"><span class="dot dot-green"></span>Accesos rápidos</div>
+        <div class="iot-grid">
+          <button class="btn btn-secondary adm-shortcut" data-view="v-equipos">🔬 Equipos</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-asig">📌 Asignaciones</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-movs">🔄 Movimientos</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-mants">🔧 Mantenimientos</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-traslados">🚑 Traslados</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-reportes">📈 Reportes</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-iot">📡 Gestión IoT</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-auditoria">🔍 Auditoría</button>
         </div>
+      </div>
+    </section>
 
-        <!-- KPIs reales -->
+    <!-- VISTA 2: REPORTES -->
+    <section id="v-reportes" class="view">
+      <div class="topbar">
+        <div class="topbar-left">
+          <div class="topbar-title">Reportes</div>
+          <div class="topbar-sub">Indicadores de gestión y eficiencia operativa del hospital</div>
+        </div>
+      </div>
+      <div class="content">
+
+        <!-- KPIs de decisión -->
         <div class="rpt-kpi-grid">
-          <div class="rpt-kpi" style="--kc:var(--green)">
+          <div class="rpt-kpi" style="--kc:{% if global_disp_pct >= 80 %}var(--green){% elif global_disp_pct >= 60 %}var(--amber){% else %}var(--red){% endif %}">
             <div class="rpt-kpi-icon">✅</div>
-            <div class="rpt-kpi-val">{{ estados.get('Disponible',0) }}</div>
-            <div class="rpt-kpi-label">Equipos disponibles</div>
-            <div class="rpt-kpi-sub">Listos para asignar ahora</div>
-            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--green);width:{{ ((estados.get('Disponible',0)/total_eq)*100)|int if total_eq else 0 }}%"></div></div>
+            <div class="rpt-kpi-val">{{ total_disp_con_area }} de {{ total_eq_con_area }}</div>
+            <div class="rpt-kpi-label">Equipos disponibles ahora</div>
+            <div class="rpt-kpi-sub">{{ global_disp_pct }}% del inventario activo listo para uso clínico</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:{% if global_disp_pct >= 80 %}var(--green){% elif global_disp_pct >= 60 %}var(--amber){% else %}var(--red){% endif %};width:{{ global_disp_pct }}%"></div></div>
           </div>
-          <div class="rpt-kpi" style="--kc:var(--teal)">
-            <div class="rpt-kpi-icon">▶️</div>
-            <div class="rpt-kpi-val">{{ estados.get('En uso',0) }}</div>
-            <div class="rpt-kpi-label">Equipos en uso</div>
-            <div class="rpt-kpi-sub">Asignados y activos</div>
-            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--teal);width:{{ ((estados.get('En uso',0)/total_eq)*100)|int if total_eq else 0 }}%"></div></div>
+          <div class="rpt-kpi" style="--kc:{% if n_areas_alerta > 0 %}var(--red){% else %}var(--green){% endif %}">
+            <div class="rpt-kpi-icon">🏥</div>
+            <div class="rpt-kpi-val">{{ n_areas_alerta }}</div>
+            <div class="rpt-kpi-label">Áreas con disponibilidad crítica</div>
+            <div class="rpt-kpi-sub">Áreas con menos del 70 % de equipos disponibles</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:{% if n_areas_alerta > 0 %}var(--red){% else %}var(--green){% endif %};width:{{ [n_areas_alerta * 33, 100]|min }}%"></div></div>
           </div>
-          <div class="rpt-kpi" style="--kc:var(--amber)">
-            <div class="rpt-kpi-icon">🔧</div>
-            <div class="rpt-kpi-val">{{ estados.get('En mantenimiento',0) }}</div>
-            <div class="rpt-kpi-label">En mantenimiento</div>
-            <div class="rpt-kpi-sub">Preventivo · Correctivo · Calibración</div>
-            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--amber);width:{{ ((estados.get('En mantenimiento',0)/total_eq)*100)|int if total_eq else 0 }}%"></div></div>
+          <div class="rpt-kpi" style="--kc:{% if n_mants_vencidos > 0 %}var(--red){% else %}var(--green){% endif %}">
+            <div class="rpt-kpi-icon">⏰</div>
+            <div class="rpt-kpi-val">{{ n_mants_vencidos }}</div>
+            <div class="rpt-kpi-label">Mantenimientos vencidos</div>
+            <div class="rpt-kpi-sub">Equipos cuya fecha de mantenimiento programado ya expiró</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:{% if n_mants_vencidos > 0 %}var(--red){% else %}var(--green){% endif %};width:{{ [n_mants_vencidos * 17, 100]|min }}%"></div></div>
           </div>
-          <div class="rpt-kpi" style="--kc:var(--red)">
-            <div class="rpt-kpi-icon">⚠️</div>
-            <div class="rpt-kpi-val">{{ estados.get('Fuera de servicio',0) }}</div>
-            <div class="rpt-kpi-label">Fuera de servicio</div>
-            <div class="rpt-kpi-sub">Requieren atención inmediata</div>
-            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--red);width:{{ ((estados.get('Fuera de servicio',0)/total_eq)*100)|int if total_eq else 0 }}%"></div></div>
+          <div class="rpt-kpi" style="--kc:{% if n_candidatos_reemplazo > 0 %}var(--amber){% else %}var(--green){% endif %}">
+            <div class="rpt-kpi-icon">🔄</div>
+            <div class="rpt-kpi-val">{{ n_candidatos_reemplazo }}</div>
+            <div class="rpt-kpi-label">Equipos candidatos a reemplazo</div>
+            <div class="rpt-kpi-sub">Equipos con historial de fallas recurrentes que requieren evaluación de baja</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:{% if n_candidatos_reemplazo > 0 %}var(--amber){% else %}var(--green){% endif %};width:{{ [n_candidatos_reemplazo * 25, 100]|min }}%"></div></div>
           </div>
         </div>
 
-        <div class="rpt-section-label"><span class="rpt-section-tag">// gráficas</span>Visualizaciones de la BD</div>
-
-        <!-- Gráficas Chart.js -->
+        <!-- Estado operativo actual -->
+        <div class="rpt-section-label"><span class="rpt-section-tag">Estado actual</span>Disponibilidad y condición del inventario hospitalario en este momento</div>
         <div class="rpt-charts-grid">
           <div class="card">
             <div class="card-hdr">
-              <span class="card-ttl">📊 Uso clínico vs mantenimiento por equipo</span>
-              <span class="rpt-chart-legend">
-                <span class="rpt-leg-dot" style="background:rgba(14,116,144,.85)"></span>Usos clínicos &nbsp;
-                <span class="rpt-leg-dot" style="background:rgba(180,83,9,.75)"></span>Mantenimientos
-              </span>
+              <span class="card-ttl">📊 Disponibilidad operativa por área</span>
+              <span style="font-size:10px;color:var(--tx3)">% de equipos listos para uso clínico sobre el total asignado al área</span>
             </div>
-            <div class="card-body rpt-chart-body"><canvas id="chart-uso-mant"></canvas></div>
+            <div class="card-body rpt-chart-body"><div id="chart-eficiencia-area" style="height:100%;min-height:210px"></div></div>
           </div>
           <div class="card">
             <div class="card-hdr">
-              <span class="card-ttl">🥧 Distribución de estados de equipos</span>
-              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:var(--green)"></span>Disponible &nbsp;<span class="rpt-leg-dot" style="background:var(--teal)"></span>Uso &nbsp;<span class="rpt-leg-dot" style="background:var(--amber)"></span>Mant. &nbsp;<span class="rpt-leg-dot" style="background:var(--red)"></span>Fuera</span>
+              <span class="card-ttl">🔵 Estado actual del inventario</span>
+              <span style="font-size:10px;color:var(--tx3)">Distribución de todos los equipos activos por estado</span>
             </div>
-            <div class="card-body rpt-chart-body"><canvas id="chart-estados"></canvas></div>
+            <div class="card-body rpt-chart-body"><div id="chart-estados-adm" style="height:100%;min-height:210px"></div></div>
           </div>
         </div>
 
-        <div class="rpt-section-label"><span class="rpt-section-tag">// métricas</span>Indicadores operativos</div>
-
-        <!-- Tablas métricas -->
-        <div class="rpt-metrics-grid">
-          <div class="card">
-            <div class="card-hdr"><span class="card-ttl">Actividad por área hospitalaria</span></div>
-            <div class="card-body">
-              {% set mx_a = rpt_movs_area[0].total_movs if rpt_movs_area else 1 %}
-              {% set area_colors = ['var(--teal)','var(--blue)','var(--purple)','var(--green)','var(--amber)','var(--red)','var(--teal-d)','var(--green)','var(--blue)','var(--purple)'] %}
-              {% for r in rpt_movs_area %}
-              <div class="rpt-area-row">
-                <div class="rpt-area-name">{{ r.area }}</div>
-                <div class="rpt-area-bar-wrap">{{ bar_h(r.total_movs, mx_a, area_colors[loop.index0 % area_colors|length]) }}</div>
-                <div class="rpt-area-stat">
-                  <span style="color:{{ area_colors[loop.index0 % area_colors|length] }};font-size:10px">{{ r.total_movs }} mov</span>
-                  <span style="color:var(--tx3);font-size:9px">{{ r.equipos_involucrados }} eq</span>
-                </div>
-              </div>
-              {% endfor %}
-            </div>
+        <!-- Tendencia histórica -->
+        <div class="rpt-section-label"><span class="rpt-section-tag">Tendencia</span>Evolución de la actividad de equipos a lo largo del tiempo</div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-hdr">
+            <span class="card-ttl">📈 Movimientos de equipos por mes</span>
+            <span style="font-size:10px;color:var(--tx3)">Traslados internos, reasignaciones y préstamos registrados</span>
           </div>
-          <div class="card">
-            <div class="card-hdr"><span class="card-ttl">🔄 Frecuencia por tipo de movimiento</span></div>
-            <div class="card-body">
-              {% set mx_f = rpt_freq_mov[0].total if rpt_freq_mov else 1 %}
-              {% for r in rpt_freq_mov %}
-              <div class="rpt-freq-row">
-                <span class="badge b-teal" style="min-width:120px;justify-content:flex-start;font-size:10px">{{ r.tipo_movimiento }}</span>
-                <div class="pr" style="flex:1;margin:0 8px"><div class="prf" style="width:{{ [((r.total/mx_f)*100)|int,3]|max }}%;background:var(--teal);opacity:.7"></div></div>
-                <span style="font-size:10px;color:var(--tx3);flex-shrink:0">{{ r.total }}</span>
-              </div>
-              {% endfor %}
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-hdr"><span class="card-ttl">📋 Métricas IoT monitoreadas</span></div>
-            <div class="card-body">
-              <ul class="rpt-metric-list">
-                <li><span class="rpt-ml-dot" style="background:var(--teal)"></span>Uso clínico vs mantenimiento por equipo</li>
-                <li><span class="rpt-ml-dot" style="background:var(--blue)"></span>Trazabilidad por área hospitalaria</li>
-                <li><span class="rpt-ml-dot" style="background:var(--green)"></span>Frecuencia de movimientos NFC · GPS · Beacon</li>
-                <li><span class="rpt-ml-dot" style="background:var(--amber)"></span>Mantenimiento preventivo vs correctivo</li>
-                <li><span class="rpt-ml-dot" style="background:var(--purple)"></span>Disponibilidad por turno y área</li>
-                <li><span class="rpt-ml-dot" style="background:var(--red)"></span>Equipos críticos sin atención</li>
-                <li><span class="rpt-ml-dot" style="background:var(--blue)"></span>Carga de trabajo biomédico</li>
-                <li><span class="rpt-ml-dot" style="background:var(--green)"></span>Asignaciones activas por persona</li>
-              </ul>
-            </div>
-          </div>
+          <div class="card-body rpt-chart-body"><div id="chart-movs-mes" style="height:100%;min-height:210px"></div></div>
         </div>
 
-        <div class="rpt-section-label"><span class="rpt-section-tag">// funciones almacenadas</span>Resultados de BD</div>
-
-        <div class="two" style="margin-bottom:18px">
-          <div class="card">
-            <div class="card-hdr"><span class="card-ttl">fn_reporte_equipos_mas_movidos</span></div>
-            <div class="tbl-wrap"><table class="tbl">
-              <thead><tr><th>Equipo</th><th>Código</th><th>Movimientos</th></tr></thead>
-              <tbody>
-                {% for r in rpt_mas_movidos %}
-                <tr>
-                  <td><strong>{{ r.nombre_equipo }}</strong></td>
-                  <td><span class="cod">{{ r.codigo_interno }}</span></td>
-                  <td><span class="badge b-teal">{{ r.total_movimientos }}</span></td>
-                </tr>
-                {% else %}<tr><td colspan="3" class="empty">Sin datos</td></tr>{% endfor %}
-              </tbody>
-            </table></div>
-          </div>
-          <div class="card">
-            <div class="card-hdr"><span class="card-ttl">🔬 fn_reporte_carga_biomedica</span></div>
-            <div class="tbl-wrap"><table class="tbl">
-              <thead><tr><th>Biomédico</th><th>Mantenimientos</th></tr></thead>
-              <tbody>
-                {% for r in rpt_carga_bio %}
-                <tr>
-                  <td><strong>{{ r.nombre_persona }} {{ r.apellido_persona }}</strong></td>
-                  <td><span class="badge b-amber">{{ r.total_mantenimientos }}</span></td>
-                </tr>
-                {% else %}<tr><td colspan="2" class="empty">Sin datos</td></tr>{% endfor %}
-              </tbody>
-            </table></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-hdr"><span class="card-ttl">🔗 Uso clínico vs mantenimiento — tabla completa</span></div>
-          <div class="tbl-wrap"><table class="tbl">
-            <thead><tr><th>Equipo</th><th>Código</th><th>Mantenimientos</th><th>Usos clínicos</th><th>Balance</th></tr></thead>
-            <tbody>
-              {% for r in rpt_uso_vs_mant %}{% if r.total_usos > 0 or r.total_mants > 0 %}
-              <tr>
-                <td><strong>{{ r.nombre_equipo }}</strong></td>
-                <td><span class="cod">{{ r.codigo_interno }}</span></td>
-                <td><span class="badge b-amber">{{ r.total_mants }}</span></td>
-                <td><span class="badge b-teal">{{ r.total_usos }}</span></td>
-                <td>{% if r.total_mants > r.total_usos %}<span class="badge b-red">Alta mant.</span>{% elif r.total_usos > r.total_mants %}<span class="badge b-green">Alto uso clínico</span>{% else %}<span class="badge b-gray">Equilibrado</span>{% endif %}</td>
-              </tr>
-              {% endif %}{% else %}<tr><td colspan="5" class="empty">Sin datos</td></tr>{% endfor %}
-            </tbody>
-          </table></div>
-        </div>
-      </section>
-
-      <!-- ══ EQUIPOS ══ -->
-      <section id="v-equipos" class="view">
-        <div class="phdr">
-          <div><div class="ptitle">Inventario <em>de Equipos</em></div><div class="psub">{{ equipos|length }} equipos registrados</div></div>
-          <div class="phdr-act"><button class="btn btn-primary" onclick="openModal('modal-equipo')">+ Nuevo equipo</button></div>
-        </div>
+        <!-- Detalle por equipo -->
+        <div class="rpt-section-label"><span class="rpt-section-tag">Detalle</span>Equipos con mayor número de desplazamientos físicos registrados</div>
         <div class="card">
           <div class="card-hdr">
-            <span class="card-ttl">🔬 Equipos médicos</span>
-            <input class="fc" style="max-width:220px;margin:0" placeholder="Buscar…" id="srch-eq" oninput="filtrarTabla('srch-eq','#tbl-eq tbody')">
+            <span class="card-ttl">🔄 Top equipos más movidos</span>
+            <span style="font-size:10px;color:var(--tx3)">Cantidad acumulada de traslados, reasignaciones y préstamos por equipo</span>
           </div>
-          <div class="tbl-wrap"><table class="tbl" id="tbl-eq">
+          <div class="card-body rpt-chart-body"><div id="chart-top-movidos" style="height:100%;min-height:210px"></div></div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- VISTA 3: IoT -->
+    <section id="v-iot" class="view">
+      <div class="topbar">
+        <div class="topbar-left">
+          <div class="topbar-title">📡 Gestión IoT &amp; Auditoría</div>
+          <div class="topbar-sub">Monitoreo en tiempo real · Discrepancias · Trazabilidad</div>
+        </div>
+        <div class="topbar-right view-header-actions">
+          <span id="iot-refresh-ts" class="ts-dim">Actualizado ahora</span>
+          <button class="btn btn-secondary btn-sm" onclick="refreshIoT()">↻ Actualizar</button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="iot-grid">
+          <div class="iot-kpi"><div class="kpi-val {% if total_disc is defined and total_disc > 0 %}kpi-red{% else %}kpi-green{% endif %}" id="kpi-disc">{{ total_disc if total_disc is defined else 0 }}</div><div class="kpi-lbl">Discrepancias de ubicación</div></div>
+          <div class="iot-kpi"><div class="kpi-val {% if total_sin_evidencia is defined and total_sin_evidencia > 0 %}kpi-amber{% else %}kpi-green{% endif %}" id="kpi-sin">{{ total_sin_evidencia if total_sin_evidencia is defined else 0 }}</div><div class="kpi-lbl">Sin señal (&gt;12 h)</div></div>
+          <div class="iot-kpi"><div class="kpi-val kpi-blue">{{ eventos_nfc|length if eventos_nfc is defined else 0 }}</div><div class="kpi-lbl">Eventos NFC recientes</div></div>
+          <div class="iot-kpi"><div class="kpi-val kpi-blue">{{ eventos_beacon|length if eventos_beacon is defined else 0 }}</div><div class="kpi-lbl">Eventos Beacon recientes</div></div>
+          <div class="iot-kpi"><div class="kpi-val kpi-green">{{ beacons|length if beacons is defined else 0 }}</div><div class="kpi-lbl">Beacons registrados</div></div>
+          <div class="iot-kpi"><div class="kpi-val kpi-green">{{ dispositivos_nfc|length if dispositivos_nfc is defined else 0 }}</div><div class="kpi-lbl">Dispositivos NFC</div></div>
+        </div>
+        <div class="tabs-iot">
+          <button class="tab-iot active" onclick="switchIoTTab('t-disc',this)">🚨 Discrepancias</button>
+          <button class="tab-iot" onclick="switchIoTTab('t-sinal',this)">📵 Sin señal</button>
+          <button class="tab-iot" onclick="switchIoTTab('t-nfc',this)">📟 Eventos NFC</button>
+          <button class="tab-iot" onclick="switchIoTTab('t-beacon',this)">📻 Eventos Beacon</button>
+          <button class="tab-iot" onclick="switchIoTTab('t-inv',this)">🗂 Inventario IoT</button>
+        </div>
+        <div id="t-disc" class="tab-pane active">
+          <div class="section-hdr"><span class="dot dot-red"></span>Discrepancias de ubicación (Beacon vs Administrativo)</div>
+          {% if discrepancias is defined and discrepancias %}
+          <div class="card"><div class="tbl-wrap"><table class="iot-tbl">
+            <thead><tr><th>Código</th><th>Equipo</th><th>Ub. Admin</th><th>Área Admin</th><th>Ub. Beacon</th><th>Área Beacon</th><th>Última lectura</th><th>Estado</th></tr></thead>
+            <tbody>{% for d in discrepancias %}<tr>
+              <td><span class="cod">{{ d.codigo_interno }}</span></td><td>{{ d.nombre_equipo }}</td>
+              <td>{{ d.ubicacion_administrativa or '—' }}</td><td>{{ d.area_administrativa or '—' }}</td>
+              <td>{{ d.ubicacion_evidencia_beacon or '—' }}</td><td>{{ d.area_evidencia_beacon or '—' }}</td>
+              <td class="ts-dim">{{ d.fecha_ultima_evidencia_beacon or '—' }}</td><td>{{ resultado_badge(d.resultado) }}</td>
+            </tr>{% endfor %}</tbody>
+          </table></div></div>
+          {% else %}<div class="empty-iot">✅ No hay discrepancias detectadas.</div>{% endif %}
+        </div>
+        <div id="t-sinal" class="tab-pane">
+          <div class="section-hdr"><span class="dot dot-amber"></span>Equipos sin evidencia IoT en las últimas 12 horas</div>
+          {% if sin_evidencia is defined and sin_evidencia %}
+          <div class="card"><div class="tbl-wrap"><table class="iot-tbl">
+            <thead><tr><th>Código</th><th>Equipo</th><th>Criticidad</th><th>Última NFC</th><th>Último Beacon</th><th>Última señal</th></tr></thead>
+            <tbody>{% for eq in sin_evidencia %}<tr>
+              <td><span class="cod">{{ eq.codigo_interno }}</span></td><td>{{ eq.nombre_equipo }}</td><td>{{ eq.criticidad_equipo }}</td>
+              <td class="ts-dim">{{ eq.ultima_evidencia_nfc or '—' }}</td><td class="ts-dim">{{ eq.ultima_evidencia_beacon or '—' }}</td>
+              <td class="ts-dim"><span class="badge b-amber">{{ eq.ultima_evidencia_iot or 'Sin registro' }}</span></td>
+            </tr>{% endfor %}</tbody>
+          </table></div></div>
+          {% else %}<div class="empty-iot">✅ Todos los equipos tienen señal IoT reciente.</div>{% endif %}
+        </div>
+        <div id="t-nfc" class="tab-pane">
+          <div class="section-hdr"><span class="dot dot-blue"></span>Últimos 50 eventos NFC</div>
+          {% if eventos_nfc is defined and eventos_nfc %}
+          <div class="card"><div class="tbl-wrap"><table class="iot-tbl">
+            <thead><tr><th>Fecha/hora</th><th>Tipo evento</th><th>UID NFC</th><th>Equipo</th><th>Estado</th><th>Ubicación</th><th>Área</th></tr></thead>
+            <tbody>{% for ev in eventos_nfc %}<tr>
+              <td class="ts-dim">{{ ev.fecha_hora_evento }}</td><td>{{ ev.tipo_evento_nfc }}</td>
+              <td><span class="cod">{{ ev.codigo_uid_nfc }}</span></td><td>{{ ev.nombre_equipo }}</td>
+              <td>{{ estado_badge(ev.estado_equipo) }}</td><td>{{ ev.nombre_ubicacion }}</td><td>{{ ev.nombre_area }}</td>
+            </tr>{% endfor %}</tbody>
+          </table></div></div>
+          {% else %}<div class="empty-iot">Sin eventos NFC registrados.</div>{% endif %}
+        </div>
+        <div id="t-beacon" class="tab-pane">
+          <div class="section-hdr"><span class="dot dot-blue"></span>Últimos 50 eventos Beacon</div>
+          {% if eventos_beacon is defined and eventos_beacon %}
+          <div class="card"><div class="tbl-wrap"><table class="iot-tbl">
+            <thead><tr><th>Fecha/hora</th><th>Tipo</th><th>UUID Beacon</th><th>Zona</th><th>Área</th><th>Equipo</th></tr></thead>
+            <tbody>{% for ev in eventos_beacon %}<tr>
+              <td class="ts-dim">{{ ev.fecha_hora_evento }}</td><td>{{ ev.tipo_evento_beacon }}</td>
+              <td class="ts-dim">{{ ev.uuid_beacon }}</td><td>{{ ev.nombre_zona_beacon }}</td>
+              <td>{{ ev.nombre_area }}</td><td>{{ ev.nombre_equipo }}</td>
+            </tr>{% endfor %}</tbody>
+          </table></div></div>
+          {% else %}<div class="empty-iot">Sin eventos Beacon registrados.</div>{% endif %}
+        </div>
+        <div id="t-inv" class="tab-pane">
+          <div class="section-hdr"><span class="dot dot-green"></span>Beacons registrados</div>
+          {% if beacons is defined and beacons %}
+          <div class="card" style="margin-bottom:18px"><div class="tbl-wrap"><table class="iot-tbl">
+            <thead><tr><th>UUID</th><th>Major</th><th>Minor</th><th>Activo</th><th>Zona</th><th>Ubicación</th><th>Área</th></tr></thead>
+            <tbody>{% for b in beacons %}<tr>
+              <td class="ts-dim">{{ b.uuid_beacon }}</td><td>{{ b.major_beacon }}</td><td>{{ b.minor_beacon }}</td>
+              <td>{% if b.activo_beacon %}<span class="badge b-green">Activo</span>{% else %}<span class="badge b-gray">Inactivo</span>{% endif %}</td>
+              <td>{{ b.nombre_zona_beacon }}</td><td>{{ b.nombre_ubicacion }}</td><td>{{ b.nombre_area }}</td>
+            </tr>{% endfor %}</tbody>
+          </table></div></div>
+          {% else %}<div class="empty-iot">Sin beacons registrados.</div>{% endif %}
+          <div class="section-hdr"><span class="dot dot-blue"></span>Dispositivos NFC</div>
+          {% if dispositivos_nfc is defined and dispositivos_nfc %}
+          <div class="card"><div class="tbl-wrap"><table class="iot-tbl">
+            <thead><tr><th>UID NFC</th><th>Activo</th><th>Equipo</th><th>Código</th><th>Estado</th></tr></thead>
+            <tbody>{% for n in dispositivos_nfc %}<tr>
+              <td class="ts-dim">{{ n.codigo_uid_nfc }}</td>
+              <td>{% if n.activo_nfc %}<span class="badge b-green">Activo</span>{% else %}<span class="badge b-gray">Inactivo</span>{% endif %}</td>
+              <td>{{ n.nombre_equipo }}</td><td><span class="cod">{{ n.codigo_interno }}</span></td>
+              <td>{{ estado_badge(n.estado_equipo) }}</td>
+            </tr>{% endfor %}</tbody>
+          </table></div></div>
+          {% else %}<div class="empty-iot">Sin dispositivos NFC registrados.</div>{% endif %}
+        </div>
+      </div>
+      <span id="iot-refresh-url" data-url="{{ url_for('admin_iot_json') }}" hidden></span>
+    </section>
+
+    <!-- VISTA 4: EQUIPOS con CRUD -->
+    <section id="v-equipos" class="view">
+      <div class="topbar">
+        <div class="topbar-left">
+          <div class="topbar-title">Equipos médicos</div>
+          <div class="topbar-sub">
+            {{ equipos|length }} en total ·
+            {{ equipos|selectattr('activo_equipo')|list|length }} activos ·
+            {{ equipos|rejectattr('activo_equipo')|list|length }} inactivos
+          </div>
+        </div>
+        <div class="topbar-right view-header-actions">
+          <input type="text" class="tbl-search" placeholder="Buscar..." oninput="filterTable(this,'tb-equipos')">
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;white-space:nowrap;">
+            <input type="checkbox" id="chk-mostrar-inactivos" onchange="toggleInactivos(this.checked)" checked> Mostrar inactivos
+          </label>
+          <button class="btn btn-primary btn-sm" onclick="resetModalEquipo();openModal('m-nuevo-equipo')">+ Equipo</button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="card"><div class="tbl-wrap">
+          <table class="iot-tbl" id="tb-equipos">
             <thead><tr><th>Código</th><th>Equipo</th><th>Marca · Modelo</th><th>Tipo</th><th>Área</th><th>Estado</th><th>Acciones</th></tr></thead>
             <tbody>
-              {% for e in equipos %}
+            {% for eq in equipos %}
+            <tr {% if not eq.activo_equipo %}class="row-inactivo" data-inactivo="1" style="opacity:.55"{% endif %}>
+              <td>
+                <span class="cod">{{ eq.codigo_interno }}</span>
+                {% if not eq.activo_equipo %}<span class="badge b-gray" style="margin-left:4px;font-size:.7rem">Inactivo</span>{% endif %}
+              </td>
+              <td><strong>{{ eq.nombre_equipo }}</strong></td>
+              <td class="ts-dim">{{ eq.marca or '—' }} · {{ eq.modelo or '—' }}</td>
+              <td><span class="badge b-teal">{{ eq.tipo_equipo or eq.nombre_tipo or '—' }}</span></td>
+              <td>{{ eq.area or '—' }}</td>
+              <td>
+                {% if not eq.activo_equipo %}<span class="badge b-gray">—</span>
+                {% elif eq.estado_equipo == 'Disponible' %}<span class="badge b-green">{{ eq.estado_equipo }}</span>
+                {% elif eq.estado_equipo == 'En mantenimiento' %}<span class="badge b-amber">{{ eq.estado_equipo }}</span>
+                {% elif eq.estado_equipo in ('Fuera de servicio','Dañado') %}<span class="badge b-red">{{ eq.estado_equipo }}</span>
+                {% elif eq.estado_equipo == 'En uso' %}<span class="badge b-teal">{{ eq.estado_equipo }}</span>
+                {% else %}<span class="badge b-gray">{{ eq.estado_equipo }}</span>{% endif %}
+              </td>
+              <td>
+                <div class="tbl-actions">
+                  {% if eq.activo_equipo %}
+                  <button class="btn-icon btn-icon-edit" title="Editar"
+                    onclick="openEditEquipo('{{ eq.id_equipo }}','{{ eq.nombre_equipo|e }}','{{ eq.estado_equipo|e }}','{{ eq.marca or '' }}','{{ eq.modelo or '' }}')">✏️</button>
+                  <button class="btn-icon btn-icon-del" title="Eliminar"
+                    onclick="openConfirm('¿Eliminar equipo?','{{ eq.nombre_equipo|e }}','{{ eq.codigo_interno }}','eliminar','{{ url_for("admin_eliminar_equipo_alias", id=eq.id_equipo) }}')">🗑️</button>
+                  {% else %}
+                  <button class="btn btn-secondary btn-sm" title="Reactivar equipo"
+                    onclick="openConfirm('¿Reactivar equipo?','{{ eq.nombre_equipo|e }}','{{ eq.codigo_interno }}','reactivar','{{ url_for("admin_reactivar_equipo", id=eq.id_equipo) }}')">♻️ Reactivar</button>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% if equipos|length == 0 %}<div class="empty-iot">No hay equipos registrados.</div>{% endif %}
+        </div></div>
+      </div>
+    </section>
+
+    <!-- VISTA 5: ASIGNACIONES con CRUD -->
+    <section id="v-asig" class="view">
+      <div class="topbar">
+        <div class="topbar-left">
+          <div class="topbar-title">Asignaciones <em style="font-family:var(--f2);font-weight:300;color:var(--teal)">Activas</em></div>
+          <div class="topbar-sub">{{ asignaciones|length }} sin cerrar</div>
+        </div>
+        <div class="topbar-right view-header-actions">
+          <input type="text" class="tbl-search" placeholder="Buscar..." oninput="filterTable(this,'tb-asig')">
+          <button class="btn btn-primary btn-sm" onclick="openModal('m-nueva-asig')">+ Nueva asignación</button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="card"><div class="tbl-wrap">
+          <table class="iot-tbl" id="tb-asig">
+            <thead><tr><th>Equipo</th><th>Asignado a</th><th>Ubicación</th><th>Desde</th><th>Observación</th><th>Acción</th></tr></thead>
+            <tbody>
+            {% for a in asignaciones %}
+            <tr>
+              <td><div><strong>{{ a.nombre_equipo }}</strong></div><span class="cod">{{ a.codigo_interno }}</span></td>
+              <td>{{ a.asignado_a }}</td>
+              <td>{{ a.nombre_ubicacion }}</td>
+              <td class="ts-dim">{{ a.fecha_inicio_asignacion }}</td>
+              <td class="ts-dim">{{ a.observacion_asignacion or '—' }}</td>
+              <td>
+                <button class="btn btn-danger btn-sm"
+                  onclick="openConfirm('¿Liberar asignación?','{{ a.nombre_equipo|e }}','{{ a.codigo_interno }}','liberar','{{ url_for('admin_liberar_asig', id=a.id_asignacion) }}')">
+                  🔓 Liberar
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% if asignaciones|length == 0 %}<div class="empty-iot">No hay asignaciones activas.</div>{% endif %}
+        </div></div>
+      </div>
+    </section>
+
+    <!-- VISTA 6: MOVIMIENTOS -->
+    <section id="v-movs" class="view">
+      <div class="topbar">
+        <div class="topbar-left"><div class="topbar-title">Movimientos</div><div class="topbar-sub">Últimos movimientos registrados</div></div>
+        <div class="topbar-right view-header-actions">
+          <input type="text" class="tbl-search" placeholder="Buscar..." oninput="filterTable(this,'tb-movs')">
+        </div>
+      </div>
+      <div class="content">
+        <div class="card"><div class="tbl-wrap">
+          <table class="iot-tbl" id="tb-movs">
+            <thead><tr><th>Código</th><th>Equipo</th><th>Tipo</th><th>Origen</th><th>Destino</th><th>Responsable</th><th>Fecha</th></tr></thead>
+            <tbody>
+            {% for m in movimientos %}
+            <tr>
+              <td><span class="cod">{{ m.codigo_interno }}</span></td>
+              <td>{{ m.nombre_equipo }}</td><td>{{ m.tipo_movimiento }}</td>
+              <td>{{ m.origen }}</td><td>{{ m.destino }}</td>
+              <td>{{ m.responsable }}</td><td class="ts-dim">{{ m.fecha_hora_movimiento }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% if movimientos|length == 0 %}<div class="empty-iot">No hay movimientos registrados.</div>{% endif %}
+        </div></div>
+      </div>
+    </section>
+
+    <!-- VISTA 7: MANTENIMIENTOS -->
+    <section id="v-mants" class="view">
+      <div class="topbar">
+        <div class="topbar-left"><div class="topbar-title">Mantenimientos</div><div class="topbar-sub">Historial de servicios biomédicos</div></div>
+        <div class="topbar-right view-header-actions">
+          <input type="text" class="tbl-search" placeholder="Buscar..." oninput="filterTable(this,'tb-mants')">
+        </div>
+      </div>
+      <div class="content">
+        <div class="card"><div class="tbl-wrap">
+          <table class="iot-tbl" id="tb-mants">
+            <thead><tr><th>Código</th><th>Equipo</th><th>Tipo</th><th>Resultado</th><th>Biomédico</th><th>Fecha</th></tr></thead>
+            <tbody>
+            {% for mant in mantenimientos %}
+            <tr>
+              <td><span class="cod">{{ mant.codigo_interno }}</span></td>
+              <td>{{ mant.nombre_equipo }}</td><td>{{ mant.tipo_mantenimiento }}</td>
+              <td>{{ mant.resultado_mantenimiento }}</td>
+              <td>{{ mant.biomedico }}</td><td class="ts-dim">{{ mant.fecha_hora_mantenimiento }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% if mantenimientos|length == 0 %}<div class="empty-iot">No hay mantenimientos registrados.</div>{% endif %}
+        </div></div>
+      </div>
+    </section>
+
+    <!-- VISTA 8: TRASLADOS con CRUD -->
+    <section id="v-traslados" class="view">
+      <div class="topbar">
+        <div class="topbar-left">
+          <div class="topbar-title">Traslados <em style="font-family:var(--f2);font-weight:300;color:var(--teal)">Externos</em></div>
+          <div class="topbar-sub">Registro vía ambulancia · SP: sp_registrar_traslado_externo</div>
+        </div>
+        <div class="topbar-right view-header-actions">
+          <input type="text" class="tbl-search" placeholder="Buscar..." oninput="filterTable(this,'tb-traslados')">
+          <button class="btn btn-primary btn-sm" onclick="openModal('m-nuevo-traslado')">🚑 Nuevo préstamo</button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="iot-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+          <div class="iot-kpi"><div class="kpi-val">{{ traslados|length }}</div><div class="kpi-lbl">Total</div></div>
+          <div class="iot-kpi">
+            <div class="kpi-val kpi-amber">{{ traslados | selectattr('fecha_llegada', 'none') | list | length if traslados is defined else 0 }}</div>
+            <div class="kpi-lbl">En curso <span class="ts-dim">sin fecha llegada</span></div>
+          </div>
+          <div class="iot-kpi">
+            <div class="kpi-val kpi-green">{{ traslados | rejectattr('fecha_llegada', 'none') | list | length if traslados is defined else 0 }}</div>
+            <div class="kpi-lbl">Completados</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">🚑 Historial de traslados — v_historial_traslados_externos</span></div>
+          <div class="tbl-wrap">
+            <table class="iot-tbl" id="tb-traslados">
+              <thead><tr><th>Equipo</th><th>Ambulancia</th><th>Conductor</th><th>Tipo</th><th>Salida</th><th>Llegada</th><th>Motivo</th></tr></thead>
+              <tbody>
+              {% for t in traslados %}
               <tr>
-                <td><span class="cod">{{ e.codigo_interno }}</span></td>
-                <td><strong>{{ e.nombre_equipo }}</strong></td>
-                <td><span style="font-size:11px;color:var(--tx3)">{{ e.marca }} · {{ e.modelo }}</span></td>
-                <td><span class="badge b-blue">{{ e.tipo_equipo }}</span></td>
-                <td>{{ e.area }}</td>
-                <td>{{ estado_badge(e.estado_equipo) }}</td>
+                <td><div>{{ t.nombre_equipo }}</div><span class="cod">{{ t.codigo_interno }}</span></td>
+                <td>🚑 {{ t.codigo_ambulancia }}</td>
+                <td>{{ t.conductor }}</td>
+                <td>{{ t.tipo_traslado or '—' }}</td>
+                <td class="ts-dim">{{ t.fecha_salida }}</td>
+                <td>{% if t.fecha_llegada %}<span class="badge-completado">{{ t.fecha_llegada }}</span>{% else %}<span class="badge-transito">En tránsito</span>{% endif %}</td>
+                <td class="ts-dim">{{ t.motivo_traslado or '—' }}</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            {% if traslados|length == 0 %}<div class="empty-iot">No hay traslados registrados.</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VISTA 9: USUARIOS con CRUD -->
+    <section id="v-usuarios" class="view">
+      <div class="topbar">
+        <div class="topbar-left">
+          <div class="topbar-title">Usuarios <em style="font-family:var(--f2);font-weight:300;color:var(--teal)">&amp; Roles</em></div>
+          <div class="topbar-sub">{{ usuarios|length }} usuarios registrados</div>
+        </div>
+        <div class="topbar-right view-header-actions">
+          <input type="text" class="tbl-search" placeholder="Buscar..." oninput="filterTable(this,'tb-usuarios')">
+          <button class="btn btn-secondary btn-sm" onclick="openModal('m-nueva-persona')">+ Nueva persona</button>
+          <button class="btn btn-primary btn-sm" onclick="openModal('m-nuevo-usuario')">+ Nuevo usuario</button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="rol-cards">
+          {% for rol, color in [('Médico','var(--teal)'),('Enfermero','var(--green)'),('Biomédico','var(--amber)'),('Administrador','var(--blue)'),('Conductor','var(--purple)')] %}
+          <div class="rol-card" style="--rc:{{ color }}">
+            <div class="rol-card-lbl">{{ rol }}s</div>
+            <div class="rol-card-val">{{ usuarios | selectattr('rol_usuario','equalto',rol) | list | length if usuarios is defined else 0 }}</div>
+            <div class="rol-card-sub">registrados</div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">👥 Directorio de usuarios</span></div>
+          <div class="tbl-wrap">
+            <table class="iot-tbl" id="tb-usuarios">
+              <thead><tr><th>Username</th><th>Nombre</th><th>Correo</th><th>Rol · Perfil</th><th>Área responsable</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <tbody>
+              {% for u in usuarios %}
+              <tr>
+                <td><span class="badge b-teal" style="font-size:11px">{{ u.username }}</span></td>
+                <td><strong>{{ u.nombre_persona }} {{ u.apellido_persona }}</strong></td>
+                <td class="ts-dim">{{ u.correo_persona }}</td>
                 <td>
-                  <div style="display:flex;gap:5px;flex-wrap:wrap">
-                    <button class="btn btn-secondary btn-sm" onclick='abrirEditarEquipo({{ e|tojson }})'>✏️ Editar</button>
-                    <form method="POST" action="{{ url_for('admin_eliminar_equipo', id_equipo=e.id_equipo) }}">
-                      <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar {{ e.nombre_equipo }}?')">🗑</button>
-                    </form>
+                  <div style="display:flex;flex-direction:column;gap:3px">
+                    {% if u.rol_usuario == 'Médico' %}<span class="badge b-teal">{{ u.rol_usuario }}</span>
+                    {% elif u.rol_usuario == 'Enfermero' %}<span class="badge b-green">{{ u.rol_usuario }}</span>
+                    {% elif u.rol_usuario == 'Biomédico' %}<span class="badge b-amber">{{ u.rol_usuario }}</span>
+                    {% elif u.rol_usuario == 'Administrador' %}<span class="badge b-blue">{{ u.rol_usuario }}</span>
+                    {% elif u.rol_usuario == 'Conductor' %}<span class="badge b-purple">{{ u.rol_usuario }}</span>
+                    {% else %}<span class="badge b-gray">{{ u.rol_usuario }}</span>{% endif %}
+                    {% if u.especialidad %}<span style="font-size:10.5px;color:var(--tx2)">{{ u.especialidad }}</span>{% endif %}
+                    {% if u.nombre_turno %}<span style="font-size:10px;color:var(--tx3)">🕐 {{ u.nombre_turno }} ({{ u.hora_inicio.strftime('%H:%M') }}–{{ u.hora_fin.strftime('%H:%M') }})</span>{% endif %}
+                  </div>
+                </td>
+                <td>
+                  {% if u.area_responsable %}
+                    <span class="badge b-green" style="font-size:10.5px">📍 {{ u.area_responsable }}</span>
+                    <div style="font-size:10px;color:var(--tx3);margin-top:2px">desde {{ u.fecha_inicio_responsable_area.strftime('%d/%m/%Y') if u.fecha_inicio_responsable_area else '—' }}</div>
+                  {% elif u.rol_usuario == 'Enfermero' %}
+                    <span style="font-size:10.5px;color:var(--tx3)">Sin área asignada</span>
+                  {% else %}—{% endif %}
+                </td>
+                <td>{% if u.activo_usuario %}<span class="badge b-green">Activo</span>{% else %}<span class="badge b-gray">Inactivo</span>{% endif %}</td>
+                <td>
+                  <div class="tbl-actions">
+                    <!-- Editar -->
+                    <button class="btn-icon btn-icon-edit" title="Editar usuario"
+                      data-uid="{{ u.id_usuario }}"
+                      data-uname="{{ u.username|e }}"
+                      data-rol="{{ u.rol_usuario|e }}"
+                      data-esp-med="{{ u.id_especialidad_medico or '' }}"
+                      data-esp-enf="{{ u.id_especialidad_enfermero or '' }}"
+                      data-turno="{{ u.id_turno_enf or u.id_turno_med or u.id_turno_bio or '' }}"
+                      onclick="abrirEditarUsuario(this)">✏️</button>
+                    <!-- Responsable de área (solo enfermeros) -->
+                    {% if u.rol_usuario == 'Enfermero' %}
+                      {% if u.area_responsable %}
+                      <form method="POST" action="{{ url_for('admin_quitar_responsable', id_usuario_target=u.id_usuario) }}" style="display:inline">
+                        <button type="submit" class="btn-icon btn-icon-del" title="Quitar responsable de área" onclick="return confirm('¿Quitar responsabilidad de área de {{ u.nombre_persona|e }} {{ u.apellido_persona|e }}?')">📍✕</button>
+                      </form>
+                      {% else %}
+                      <button class="btn-icon" style="border-color:#bbf7d0;color:#15803d;background:#f0fdf4" title="Asignar responsable de área"
+                        data-uid="{{ u.id_usuario }}" data-nombre="{{ u.nombre_persona|e }} {{ u.apellido_persona|e }}"
+                        onclick="abrirAsignarResponsable(this)">📍+</button>
+                      {% endif %}
+                    {% endif %}
+                    <!-- Activar / Desactivar -->
+                    {% if u.activo_usuario %}
+                    <button class="btn-icon btn-icon-del" title="Desactivar usuario"
+                      onclick="openConfirm('¿Desactivar usuario?','{{ u.nombre_persona|e }} {{ u.apellido_persona|e }}','{{ u.username }}','desactivar','{{ url_for("admin_toggle_usuario_alias", id=u.id_usuario) }}')">🔒</button>
+                    {% else %}
+                    <button class="btn-icon" style="border-color:#fde68a;color:#b45309;background:#fef9ee" title="Activar usuario"
+                      onclick="openConfirm('¿Activar usuario?','{{ u.nombre_persona|e }} {{ u.apellido_persona|e }}','{{ u.username }}','activar','{{ url_for("admin_toggle_usuario_alias", id=u.id_usuario) }}')">🔓</button>
+                    {% endif %}
                   </div>
                 </td>
               </tr>
-              {% else %}<tr><td colspan="7" class="empty">Sin equipos registrados</td></tr>{% endfor %}
-            </tbody>
-          </table></div>
-        </div>
-      </section>
-
-      <!-- ══ USUARIOS ══ -->
-      <section id="v-usuarios" class="view">
-        <div class="phdr"><div><div class="ptitle">Usuarios <em>&amp; Roles</em></div><div class="psub">{{ usuarios|length }} usuarios registrados</div></div></div>
-        <div class="stats">
-          {% set cnt = {} %}{% for u in usuarios %}{% set _ = cnt.__setitem__(u.rol_usuario, cnt.get(u.rol_usuario,0)+1) %}{% endfor %}
-          <div class="stat" style="--sc:var(--teal)"><div class="st-label">Médicos</div><div class="st-val">{{ cnt.get('Medico',0) }}</div></div>
-          <div class="stat" style="--sc:var(--green)"><div class="st-label">Enfermeros</div><div class="st-val">{{ cnt.get('Enfermero',0) }}</div></div>
-          <div class="stat" style="--sc:var(--amber)"><div class="st-label">Biomédicos</div><div class="st-val">{{ cnt.get('Biomedico',0) }}</div></div>
-          <div class="stat" style="--sc:var(--blue)"><div class="st-label">Resp. Área</div><div class="st-val">{{ cnt.get('Responsable Area',0) }}</div></div>
-          <div class="stat" style="--sc:var(--purple)"><div class="st-label">Admins</div><div class="st-val">{{ cnt.get('Admin',0) }}</div></div>
-        </div>
-        <div class="card">
-          <div class="card-hdr">
-            <span class="card-ttl">👥 Directorio de usuarios</span>
-            <input class="fc" style="max-width:220px;margin:0" placeholder="Buscar…" id="srch-usr" oninput="filtrarTabla('srch-usr','#tbl-usr tbody')">
-          </div>
-          <div class="tbl-wrap"><table class="tbl" id="tbl-usr">
-            <thead><tr><th>Username</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead>
-            <tbody>
-              {% for u in usuarios %}
-              <tr>
-                <td><span class="cod">{{ u.username }}</span></td>
-                <td><strong>{{ u.nombre_persona }} {{ u.apellido_persona }}</strong></td>
-                <td><span class="mono">{{ u.correo_persona }}</span></td>
-                <td>{{ rol_badge(u.rol_usuario) }}</td>
-                <td>{% if u.activo %}<span class="badge b-green"><span class="bdot"></span>Activo</span>{% else %}<span class="badge b-red"><span class="bdot"></span>Inactivo</span>{% endif %}</td>
-                <td>
-                  <form method="POST" action="{{ url_for('admin_toggle_usuario', id_usuario=u.id_usuario) }}">
-                    <button type="submit" class="btn {% if u.activo %}btn-danger{% else %}btn-amber{% endif %} btn-sm">{% if u.activo %}🔒 Desactivar{% else %}🔓 Activar{% endif %}</button>
-                  </form>
-                </td>
-              </tr>
               {% endfor %}
-            </tbody>
-          </table></div>
+              </tbody>
+            </table>
+            {% if usuarios|length == 0 %}<div class="empty-iot">No hay usuarios registrados.</div>{% endif %}
+          </div>
         </div>
-      </section>
-
-      <!-- ══ ASIGNACIONES ══ -->
-      <section id="v-asig" class="view">
-        <div class="phdr">
-          <div><div class="ptitle">Asignaciones <em>Activas</em></div><div class="psub">{{ asignaciones|length }} sin cerrar</div></div>
-          <div class="phdr-act"><button class="btn btn-primary" onclick="openModal('modal-asignar')">+ Nueva asignación</button></div>
-        </div>
-        <div class="card">
-          <div class="tbl-wrap"><table class="tbl">
-            <thead><tr><th>Equipo</th><th>Asignado a</th><th>Ubicación</th><th>Desde</th><th>Observación</th><th>Acción</th></tr></thead>
+        {% if actividad_usuarios is defined and actividad_usuarios %}
+        <div class="section-hdr" style="margin-top:24px"><span class="dot dot-green"></span>Actividad del sistema por usuario</div>
+        <div class="card"><div class="tbl-wrap">
+          <table class="iot-tbl">
+            <thead><tr><th>Usuario</th><th>Rol</th><th>Total operaciones</th><th>Tablas afectadas</th><th>Última actividad</th></tr></thead>
             <tbody>
-              {% for a in asignaciones %}
-              <tr>
-                <td><strong>{{ a.nombre_equipo }}</strong><br><span class="cod">{{ a.codigo_interno }}</span></td>
-                <td>{{ a.asignado_a }}</td>
-                <td>{{ a.nombre_ubicacion }}</td>
-                <td><span class="mono">{{ a.fecha_asignacion.strftime('%d/%m/%Y') if a.fecha_asignacion else '—' }}</span></td>
-                <td><span style="font-size:11px;color:var(--tx3)">{{ a.observacion_asignacion or '—' }}</span></td>
-                <td>
-                  <form method="POST" action="{{ url_for('admin_cerrar_asignacion', id_asignacion=a.id_asignacion) }}">
-                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Liberar asignación?')">🔓 Liberar</button>
-                  </form>
-                </td>
-              </tr>
-              {% else %}<tr><td colspan="6" class="empty">Sin asignaciones activas</td></tr>{% endfor %}
+            {% for u in actividad_usuarios %}
+            <tr>
+              <td><strong>{{ u.username }}</strong></td><td>{{ u.rol_usuario }}</td>
+              <td>{{ u.total_operaciones }}</td><td>{{ u.tablas_distintas_afectadas }}</td>
+              <td class="ts-dim">{{ u.ultima_actividad or '—' }}</td>
+            </tr>
+            {% endfor %}
             </tbody>
-          </table></div>
-        </div>
-      </section>
+          </table>
+        </div></div>
+        {% endif %}
+      </div>
+    </section>
 
-      <!-- ══ MOVIMIENTOS ══ -->
-      <section id="v-movs" class="view">
-        <div class="phdr"><div><div class="ptitle">Registro de <em>Movimientos</em></div><div class="psub">{{ movimientos|length }} movimientos</div></div></div>
-        <div class="card">
-          <div class="tbl-wrap"><table class="tbl">
-            <thead><tr><th>Equipo</th><th>Tipo</th><th>Origen</th><th>Destino</th><th>Responsable</th><th>Observación</th><th>Fecha</th><th>Acción</th></tr></thead>
+    <!-- VISTA 10: AUDITORÍA -->
+    <section id="v-auditoria" class="view">
+      <div class="topbar">
+        <div class="topbar-left"><div class="topbar-title">Auditoría</div><div class="topbar-sub">{{ auditoria_reciente|length }} registros · últimas acciones en el sistema</div></div>
+        <div class="topbar-right view-header-actions">
+          <input type="text" class="tbl-search" placeholder="Buscar..." oninput="filterTable(this,'tb-auditoria')">
+        </div>
+      </div>
+      <div class="content">
+        {% if auditoria_reciente is defined and auditoria_reciente %}
+        <div class="card"><div class="tbl-wrap">
+          <table class="iot-tbl" id="tb-auditoria">
+            <thead><tr><th>ID</th><th>Tabla</th><th>Acción</th><th>Registro</th><th>Usuario</th><th>Origen</th><th>Fecha/hora</th><th>Nivel</th></tr></thead>
             <tbody>
-              {% for m in movimientos %}
-              <tr>
-                <td><strong>{{ m.nombre_equipo }}</strong><br><span class="cod">{{ m.codigo_interno }}</span></td>
-                <td><span class="badge b-teal">{{ m.tipo_movimiento }}</span></td>
-                <td>{{ m.origen }}</td><td>{{ m.destino }}</td>
-                <td>{{ m.responsable }}</td>
-                <td><span style="font-size:11px;color:var(--tx3)">{{ m.observacion_movimiento or '—' }}</span></td>
-                <td><span class="mono">{{ m.fecha_movimiento.strftime('%d/%m %H:%M') if m.fecha_movimiento else '—' }}</span></td>
-                <td>
-                  <form method="POST" action="{{ url_for('admin_eliminar_movimiento', id_movimiento=m.id_movimiento) }}">
-                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar este movimiento?')">🗑</button>
-                  </form>
-                </td>
-              </tr>
-              {% else %}<tr><td colspan="8" class="empty">Sin movimientos</td></tr>{% endfor %}
+            {% for a in auditoria_reciente %}
+            <tr>
+              <td class="ts-dim">{{ a.id_auditoria }}</td><td>{{ a.tabla_afectada }}</td>
+              <td>
+                {% if a.accion_auditoria in ('DESACTIVACION','DELETE_LOGICO') %}<span class="badge b-red">{{ a.accion_auditoria }}</span>
+                {% elif a.accion_auditoria == 'ACTIVACION' %}<span class="badge b-green">{{ a.accion_auditoria }}</span>
+                {% else %}<span class="badge b-gray">{{ a.accion_auditoria }}</span>{% endif %}
+              </td>
+              <td>{{ a.id_registro_afectado }}</td><td><strong>{{ a.ejecutado_por }}</strong></td>
+              <td class="ts-dim">{{ a.origen_cambio }}</td><td class="ts-dim">{{ a.fecha_hora_auditoria }}</td>
+              <td class="ts-dim">{{ a.nivel_atencion }}</td>
+            </tr>
+            {% endfor %}
             </tbody>
-          </table></div>
-        </div>
-      </section>
+          </table>
+        </div></div>
+        {% else %}<div class="empty-iot">Sin registros de auditoría.</div>{% endif %}
+      </div>
+    </section>
 
-      <!-- ══ MANTENIMIENTOS ══ -->
-      <section id="v-mants" class="view">
-        <div class="phdr"><div><div class="ptitle">Registro de <em>Mantenimientos</em></div><div class="psub">{{ mantenimientos|length }} registros</div></div></div>
-        <div class="card">
-          <div class="tbl-wrap"><table class="tbl">
-            <thead><tr><th>Equipo</th><th>Tipo</th><th>Resultado</th><th>Biomédico</th><th>Descripción</th><th>Fecha</th></tr></thead>
-            <tbody>
-              {% for m in mantenimientos %}
-              <tr>
-                <td><strong>{{ m.nombre_equipo }}</strong><br><span class="cod">{{ m.codigo_interno }}</span></td>
-                <td><span class="badge b-blue">{{ m.tipo_mantenimiento }}</span></td>
-                <td>{{ resultado_badge(m.resultado_mantenimiento) }}</td>
-                <td>{{ m.biomedico }}</td>
-                <td><span style="font-size:11px;color:var(--tx3)">{{ m.descripcion_mantenimiento }}</span></td>
-                <td><span class="mono">{{ m.fecha_mantenimiento.strftime('%d/%m/%Y') if m.fecha_mantenimiento else '—' }}</span></td>
-              </tr>
-              {% else %}<tr><td colspan="6" class="empty">Sin mantenimientos</td></tr>{% endfor %}
-            </tbody>
-          </table></div>
-        </div>
-      </section>
+  </main>
+</div>
 
+<div id="toast"></div>
+
+
+<!-- Modal: Nueva Persona -->
+<div class="modal-bg" id="m-nueva-persona">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-hdr">
+      <div class="modal-ttl">👤 Nueva persona</div>
+      <button class="modal-x" onclick="closeModal('m-nueva-persona')">×</button>
     </div>
-  </div>
-</div>
-
-<!-- MODAL EQUIPO -->
-<div id="modal-equipo" class="modal-bg">
-  <div class="modal">
-    <div class="modal-hdr"><span class="modal-ttl" id="meq-ttl">🔬 Registrar nuevo equipo</span><button class="modal-x" onclick="closeModal('modal-equipo');resetEqForm()">✕</button></div>
-    <form id="form-equipo" method="POST" action="{{ url_for('admin_nuevo_equipo') }}">
-      <div class="frow">
-        <div class="fg"><label class="fl">Código interno</label><input class="fc" name="codigo_interno" id="meq-cod" placeholder="EQ-011" required></div>
-        <div class="fg"><label class="fl">Nombre del equipo</label><input class="fc" name="nombre_equipo" id="meq-nom" placeholder="Monitor de signos vitales" required></div>
-      </div>
-      <div class="frow">
-        <div class="fg"><label class="fl">Marca</label><input class="fc" name="marca" id="meq-marca" placeholder="Philips" required></div>
-        <div class="fg"><label class="fl">Modelo</label><input class="fc" name="modelo" id="meq-modelo" placeholder="IntelliVue MX400" required></div>
-      </div>
-      <div class="fg"><label class="fl">Número de serie</label><input class="fc" name="numero_serie" id="meq-serie" placeholder="SN-XXXX-001"></div>
-      <div class="frow">
-        <div class="fg"><label class="fl">Tipo de equipo</label>
-          <select class="fc" name="id_tipo_equipo" id="meq-tipo" required>
-            <option value="">Seleccionar…</option>
-            {% for t in tipos_equipo %}<option value="{{ t.id_tipo_equipo }}">{{ t.tipo_equipo }}</option>{% endfor %}
-          </select>
+    <form method="POST" action="{{ url_for('admin_crear_persona') }}">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;padding:16px 0 0">
+        <div class="fg">
+          <label class="fl">Nombre</label>
+          <input type="text" name="nombre_persona" class="fc" required placeholder="Ej. Juan">
         </div>
-        <div class="fg"><label class="fl">Categoría</label>
-          <select class="fc" name="id_categoria_equipo" id="meq-cat" required>
-            <option value="">Seleccionar…</option>
-            {% for c in categorias %}<option value="{{ c.id_categoria_equipo }}">{{ c.categoria_equipo }}</option>{% endfor %}
-          </select>
+        <div class="fg">
+          <label class="fl">Apellido</label>
+          <input type="text" name="apellido_persona" class="fc" required placeholder="Ej. García López">
         </div>
-      </div>
-      <div class="frow">
-        <div class="fg"><label class="fl">Estado</label>
-          <select class="fc" name="id_estado_equipo" id="meq-estado" required>
-            <option value="">Seleccionar…</option>
-            {% for e in estados_cat %}<option value="{{ e.id_estado_equipo }}">{{ e.estado_equipo }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="fg"><label class="fl">Ubicación</label>
-          <select class="fc" name="id_ubicacion" id="meq-ubi" required>
-            <option value="">Seleccionar…</option>
-            {% for u in ubicaciones %}<option value="{{ u.id_ubicacion }}">{{ u.nombre_ubicacion }}</option>{% endfor %}
-          </select>
+        <div class="fg">
+          <label class="fl">Correo electrónico</label>
+          <input type="email" name="correo_persona" class="fc" required placeholder="correo@hospital.com">
         </div>
       </div>
       <div class="modal-ft">
-        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-equipo');resetEqForm()">Cancelar</button>
-        <button type="submit" class="btn btn-primary" id="meq-btn">Registrar equipo</button>
+        <button type="button" class="btn btn-secondary" onclick="closeModal('m-nueva-persona')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Registrar persona</button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- MODAL ASIGNAR -->
-<div id="modal-asignar" class="modal-bg">
-  <div class="modal">
-    <div class="modal-hdr"><span class="modal-ttl">📌 Asignar equipo a persona</span><button class="modal-x" onclick="closeModal('modal-asignar')">✕</button></div>
-    <form method="POST" action="{{ url_for('admin_asignar') }}">
-      <div class="fg"><label class="fl">Equipo</label>
-        <select class="fc" name="id_equipo" required>
-          <option value="">Seleccionar equipo…</option>
-          {% for e in equipos %}<option value="{{ e.id_equipo }}">{{ e.codigo_interno }} — {{ e.nombre_equipo }}</option>{% endfor %}
-        </select>
+<!-- Modal: Nuevo Usuario -->
+<div class="modal-bg" id="m-nuevo-usuario">
+  <div class="modal" style="width:min(520px,100%)">
+    <div class="modal-hdr">
+      <div class="modal-ttl">🔑 Nuevo usuario</div>
+      <button class="modal-x" onclick="closeModal('m-nuevo-usuario')">×</button>
+    </div>
+    <form method="POST" action="{{ url_for('admin_crear_usuario') }}">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;padding:16px 0 0">
+        <div class="fg">
+          <label class="fl">Persona</label>
+          <select name="id_persona" class="fc" required>
+            <option value="">— Selecciona una persona —</option>
+            {% for p in personas_sin_usuario %}
+            <option value="{{ p.id_persona }}">{{ p.apellido_persona }}, {{ p.nombre_persona }} · {{ p.correo_persona }}</option>
+            {% endfor %}
+          </select>
+          {% if not personas_sin_usuario %}
+          <small style="color:var(--tx3)">Todas las personas ya tienen usuario. Registra una persona nueva primero.</small>
+          {% endif %}
+        </div>
+        <div class="fg">
+          <label class="fl">Username</label>
+          <input type="text" name="username" class="fc" required placeholder="Ej. jgarcia" autocomplete="off">
+        </div>
+        <div class="fg">
+          <label class="fl">Contraseña</label>
+          <input type="password" name="contrasenia" class="fc" required placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+        </div>
+        <div class="fg">
+          <label class="fl">Rol</label>
+          <select name="id_rol" class="fc" required id="nu-rol-select" onchange="actualizarCamposRol(this)">
+            <option value="" data-rol="">— Selecciona un rol —</option>
+            {% for r in roles_usuario %}
+            <option value="{{ r.id_rol_usuario }}" data-rol="{{ r.rol_usuario }}">{{ r.rol_usuario }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Especialidad Médico (solo para rol Médico) -->
+        <div class="fg" id="nu-campo-esp-medico" style="display:none">
+          <label class="fl">Especialidad médica</label>
+          <select name="id_especialidad_medico" class="fc" id="nu-esp-medico">
+            <option value="">— Selecciona especialidad —</option>
+            {% for e in especialidades_medico %}
+            <option value="{{ e.id_especialidad_medico }}">{{ e.especialidad_medico }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Especialidad Enfermero (solo para rol Enfermero) -->
+        <div class="fg" id="nu-campo-esp-enfermero" style="display:none">
+          <label class="fl">Especialidad de enfermería</label>
+          <select name="id_especialidad_enfermero" class="fc" id="nu-esp-enfermero">
+            <option value="">— Selecciona especialidad —</option>
+            {% for e in especialidades_enfermero %}
+            <option value="{{ e.id_especialidad_enfermero }}">{{ e.especialidad_enfermero }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Turno (Médico, Enfermero, Biomédico) -->
+        <div class="fg" id="nu-campo-turno" style="display:none">
+          <label class="fl">Turno</label>
+          <select name="id_turno" class="fc" id="nu-turno">
+            <option value="">— Selecciona turno —</option>
+            {% for t in turnos %}
+            <option value="{{ t.id_turno }}">{{ t.nombre_turno }} ({{ t.hora_inicio.strftime('%H:%M') }} – {{ t.hora_fin.strftime('%H:%M') }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Responsable de área (opcional, solo Enfermero) -->
+        <div id="nu-campo-resp-area" style="display:none;border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--tx3);margin-bottom:10px">Responsable de área (opcional)</div>
+          <div class="fg">
+            <label class="fl">Área a asignar</label>
+            <select name="id_area_responsable" class="fc" id="nu-area-responsable">
+              <option value="">— Sin asignar (asignar luego) —</option>
+              {% for a in areas_registro %}
+              <option value="{{ a.id_area }}">{{ a.nombre_area }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
       </div>
-      <div class="fg"><label class="fl">Persona</label>
-        <select class="fc" name="id_persona" required>
-          <option value="">Seleccionar persona…</option>
-          {% for p in personas %}<option value="{{ p.id_persona }}">{{ p.nombre }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="fg"><label class="fl">Ubicación</label>
-        <select class="fc" name="id_ubicacion" required>
-          <option value="">Seleccionar…</option>
-          {% for u in ubicaciones %}<option value="{{ u.id_ubicacion }}">{{ u.nombre_ubicacion }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="fg"><label class="fl">Observación</label><input class="fc" name="observacion" placeholder="Motivo de la asignación…"></div>
       <div class="modal-ft">
-        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-asignar')">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Asignar equipo</button>
+        <button type="button" class="btn btn-secondary" onclick="closeModal('m-nuevo-usuario')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Crear usuario</button>
       </div>
     </form>
   </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<!-- Modal: Editar Usuario -->
+<div class="modal-bg" id="m-editar-usuario">
+  <div class="modal" style="width:min(520px,100%)">
+    <div class="modal-hdr">
+      <div class="modal-ttl">✏️ Editar usuario</div>
+      <button class="modal-x" onclick="closeModal('m-editar-usuario')">×</button>
+    </div>
+    <form method="POST" id="eu-form">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;padding:16px 0 0">
+        <div style="font-size:12px;color:var(--tx2);background:var(--surf2);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px" id="eu-info-rol"></div>
+        <div class="fg">
+          <label class="fl">Username</label>
+          <input type="text" name="username" class="fc" required id="eu-username" autocomplete="off">
+        </div>
+        <div class="fg">
+          <label class="fl">Nueva contraseña <span style="color:var(--tx3);font-weight:400">(dejar vacío para no cambiar)</span></label>
+          <input type="password" name="nueva_contrasenia" class="fc" id="eu-contrasenia" placeholder="Nueva contraseña..." autocomplete="new-password">
+        </div>
+        <!-- Especialidad Médico -->
+        <div class="fg" id="eu-campo-esp-medico" style="display:none">
+          <label class="fl">Especialidad médica</label>
+          <select name="id_especialidad_medico" class="fc" id="eu-esp-medico">
+            <option value="">— Selecciona —</option>
+            {% for e in especialidades_medico %}
+            <option value="{{ e.id_especialidad_medico }}">{{ e.especialidad_medico }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <!-- Especialidad Enfermero -->
+        <div class="fg" id="eu-campo-esp-enfermero" style="display:none">
+          <label class="fl">Especialidad de enfermería</label>
+          <select name="id_especialidad_enfermero" class="fc" id="eu-esp-enfermero">
+            <option value="">— Selecciona —</option>
+            {% for e in especialidades_enfermero %}
+            <option value="{{ e.id_especialidad_enfermero }}">{{ e.especialidad_enfermero }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <!-- Turno -->
+        <div class="fg" id="eu-campo-turno" style="display:none">
+          <label class="fl">Turno</label>
+          <select name="id_turno" class="fc" id="eu-turno">
+            <option value="">— Selecciona —</option>
+            {% for t in turnos %}
+            <option value="{{ t.id_turno }}">{{ t.nombre_turno }} ({{ t.hora_inicio.strftime('%H:%M') }} – {{ t.hora_fin.strftime('%H:%M') }})</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('m-editar-usuario')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Asignar Responsable de Área -->
+<div class="modal-bg" id="m-asignar-responsable">
+  <div class="modal" style="width:min(440px,100%)">
+    <div class="modal-hdr">
+      <div class="modal-ttl">📍 Asignar responsable de área</div>
+      <button class="modal-x" onclick="closeModal('m-asignar-responsable')">×</button>
+    </div>
+    <form method="POST" id="ar-form">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;padding:16px 0 0">
+        <div style="font-size:12px;color:var(--tx2)" id="ar-info-enfermero"></div>
+        <div class="fg">
+          <label class="fl">Área</label>
+          <select name="id_area" class="fc" required>
+            <option value="">— Selecciona un área —</option>
+            {% for a in areas_registro %}
+            <option value="{{ a.id_area }}">{{ a.nombre_area }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="font-size:11.5px;color:var(--tx3);line-height:1.5">
+          Si el área ya tiene un responsable activo, se cerrará automáticamente su asignación. El enfermero previo regresará a ser Enfermero sin área.
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('m-asignar-responsable')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Asignar responsable</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
-const CREATE_URL = "{{ url_for('admin_nuevo_equipo') }}";
-function resetEqForm(){
-  document.getElementById('meq-ttl').textContent='🔬 Registrar nuevo equipo';
-  document.getElementById('meq-btn').textContent='Registrar equipo';
-  document.getElementById('meq-cod').readOnly=false;
-  document.getElementById('form-equipo').reset();
-  document.getElementById('form-equipo').action=CREATE_URL;
-}
-function abrirEditarEquipo(e){
-  document.getElementById('meq-ttl').textContent='✏️ Editar equipo';
-  document.getElementById('meq-btn').textContent='Guardar cambios';
-  document.getElementById('meq-cod').value=e.codigo_interno;
-  document.getElementById('meq-cod').readOnly=true;
-  document.getElementById('meq-nom').value=e.nombre_equipo;
-  document.getElementById('meq-marca').value=e.marca;
-  document.getElementById('meq-modelo').value=e.modelo;
-  document.getElementById('meq-serie').value=e.numero_serie||'';
-  document.getElementById('meq-tipo').value=e.id_tipo_equipo;
-  document.getElementById('meq-cat').value=e.id_categoria_equipo;
-  document.getElementById('meq-estado').value=e.id_estado_equipo;
-  document.getElementById('meq-ubi').value=e.id_ubicacion;
-  document.getElementById('form-equipo').action='/admin/equipo/'+e.id_equipo+'/editar';
-  openModal('modal-equipo');
+function actualizarCamposRol(sel) {
+  var rol = sel.options[sel.selectedIndex].getAttribute('data-rol') || '';
+  var campoEspMed  = document.getElementById('nu-campo-esp-medico');
+  var campoEspEnf  = document.getElementById('nu-campo-esp-enfermero');
+  var campoTurno   = document.getElementById('nu-campo-turno');
+  var campoRespArea = document.getElementById('nu-campo-resp-area');
+  var espMed = document.getElementById('nu-esp-medico');
+  var espEnf = document.getElementById('nu-esp-enfermero');
+  var turno  = document.getElementById('nu-turno');
+  var areaResp = document.getElementById('nu-area-responsable');
+
+  campoEspMed.style.display  = 'none';
+  campoEspEnf.style.display  = 'none';
+  campoTurno.style.display   = 'none';
+  campoRespArea.style.display = 'none';
+  espMed.required = false; espMed.value = '';
+  espEnf.required = false; espEnf.value = '';
+  turno.required  = false; turno.value  = '';
+  areaResp.value  = '';
+
+  if (rol === 'Médico') {
+    campoEspMed.style.display = '';
+    campoTurno.style.display  = '';
+    espMed.required = true;
+    turno.required  = true;
+  } else if (rol === 'Enfermero') {
+    campoEspEnf.style.display  = '';
+    campoTurno.style.display   = '';
+    campoRespArea.style.display = '';
+    espEnf.required = true;
+    turno.required  = true;
+  } else if (rol === 'Biomédico') {
+    campoTurno.style.display = '';
+    turno.required = true;
+  }
 }
 
-/* Chart.js — datos reales de la BD serializados por Jinja2 */
-const usoMantData = {{ rpt_uso_vs_mant | tojson }};
-const estadosData  = {{ rpt_estados | tojson }};
+function abrirEditarUsuario(btn) {
+  var uid    = btn.getAttribute('data-uid');
+  var uname  = btn.getAttribute('data-uname');
+  var rol    = btn.getAttribute('data-rol');
+  var espMed = btn.getAttribute('data-esp-med');
+  var espEnf = btn.getAttribute('data-esp-enf');
+  var turno  = btn.getAttribute('data-turno');
 
-Chart.defaults.font.family = "'Outfit', sans-serif";
-Chart.defaults.color = '#8fa3b8';
-Chart.defaults.borderColor = 'rgba(221,229,238,.4)';
+  document.getElementById('eu-form').action = '/admin/usuario/' + uid + '/editar';
+  document.getElementById('eu-username').value = uname;
+  document.getElementById('eu-contrasenia').value = '';
+  document.getElementById('eu-info-rol').textContent = 'Rol: ' + rol;
+
+  // reset all optional fields
+  var cEM = document.getElementById('eu-campo-esp-medico');
+  var cEE = document.getElementById('eu-campo-esp-enfermero');
+  var cT  = document.getElementById('eu-campo-turno');
+  var sEM = document.getElementById('eu-esp-medico');
+  var sEE = document.getElementById('eu-esp-enfermero');
+  var sT  = document.getElementById('eu-turno');
+
+  cEM.style.display = 'none'; cEE.style.display = 'none'; cT.style.display = 'none';
+  sEM.required = false; sEE.required = false; sT.required = false;
+
+  if (rol === 'Médico') {
+    cEM.style.display = ''; cT.style.display = '';
+    sEM.required = true; sT.required = true;
+    if (espMed) sEM.value = espMed;
+    if (turno)  sT.value  = turno;
+  } else if (rol === 'Enfermero') {
+    cEE.style.display = ''; cT.style.display = '';
+    sEE.required = true; sT.required = true;
+    if (espEnf) sEE.value = espEnf;
+    if (turno)  sT.value  = turno;
+  } else if (rol === 'Biomédico') {
+    cT.style.display = '';
+    sT.required = true;
+    if (turno) sT.value = turno;
+  }
+
+  openModal('m-editar-usuario');
+}
+
+function abrirAsignarResponsable(btn) {
+  var uid    = btn.getAttribute('data-uid');
+  var nombre = btn.getAttribute('data-nombre');
+  document.getElementById('ar-form').action = '/admin/usuario/' + uid + '/asignar_responsable';
+  document.getElementById('ar-info-enfermero').textContent = 'Enfermero: ' + nombre;
+  openModal('m-asignar-responsable');
+}
+</script>
+
+<!-- Modal: Confirmación genérica -->
+<div class="modal-bg confirm-modal" id="m-confirm">
+  <div class="modal">
+    <div class="modal-icon" id="mc-icon">⚠️</div>
+    <div class="modal-hdr">
+      <div class="modal-ttl" id="mc-title">Confirmar acción</div>
+      <button class="modal-x" onclick="closeModal('m-confirm')">×</button>
+    </div>
+    <div class="modal-body" id="mc-body">¿Estás seguro de continuar con esta acción? Esta operación no se puede deshacer.</div>
+    <div class="modal-detail" id="mc-detail"></div>
+    <form id="mc-form" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+      <div class="modal-ft">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('m-confirm')">Cancelar</button>
+        <button type="submit" class="btn btn-danger" id="mc-submit-btn">Confirmar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Nuevo / Editar Equipo -->
+<div class="modal-bg" id="m-nuevo-equipo">
+  <div class="modal" style="width:min(560px,100%)">
+    <div class="modal-hdr">
+      <div class="modal-ttl" id="meq-title">🔬 Nuevo equipo</div>
+      <button class="modal-x" onclick="closeModal('m-nuevo-equipo')">×</button>
+    </div>
+    <form id="meq-form" method="POST" action="{{ url_for('admin_crear_equipo') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+      <input type="hidden" name="id_equipo" id="meq-id">
+      <div class="frow">
+        <div class="fg">
+          <label class="fl">Nombre del equipo *</label>
+          <input type="text" name="nombre_equipo" id="meq-nombre" class="fc" required placeholder="Ej: Monitor Philips MX450">
+        </div>
+        <div class="fg">
+          <label class="fl">Código interno *</label>
+          <input type="text" name="codigo_interno" id="meq-codigo" class="fc" required placeholder="Ej: EQ-999">
+        </div>
+      </div>
+      <div class="fg">
+        <label class="fl">Número de serie *</label>
+        <input type="text" name="numero_serie" id="meq-serie" class="fc" required placeholder="Ej: SN-2024-001">
+      </div>
+      <div class="frow">
+        <div class="fg">
+          <label class="fl">Marca</label>
+          <input type="text" name="marca" id="meq-marca" class="fc" placeholder="Ej: Philips">
+        </div>
+        <div class="fg">
+          <label class="fl">Modelo</label>
+          <input type="text" name="modelo" id="meq-modelo" class="fc" placeholder="Ej: MX450">
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fg">
+          <label class="fl">Estado *</label>
+          <select name="estado_equipo" id="meq-estado" class="fc" required>
+            <option value="Disponible">Disponible</option>
+            <option value="En uso">En uso</option>
+            <option value="En mantenimiento">En mantenimiento</option>
+            <option value="Fuera de servicio">Fuera de servicio</option>
+            <option value="Retirado">Retirado</option>
+            <option value="En préstamo">En préstamo</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Criticidad</label>
+          <select name="criticidad_equipo" class="fc">
+            <option value="Alta">Alta</option>
+            <option value="Media" selected>Media</option>
+            <option value="Baja">Baja</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg">
+        <label class="fl">Observaciones</label>
+        <textarea name="observaciones" class="fc" rows="2" placeholder="Notas adicionales..."></textarea>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('m-nuevo-equipo')">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="meq-submit">Guardar equipo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Nueva Asignación -->
+<div class="modal-bg" id="m-nueva-asig">
+  <div class="modal" style="width:min(520px,100%)">
+    <div class="modal-hdr">
+      <div class="modal-ttl">📌 Nueva asignación</div>
+      <button class="modal-x" onclick="closeModal('m-nueva-asig')">×</button>
+    </div>
+    <form method="POST" action="{{ url_for('admin_crear_asignacion') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+      <div class="fg">
+        <label class="fl">Equipo *</label>
+        <select name="id_equipo" class="fc" required>
+          <option value="">— Seleccionar equipo —</option>
+          {% for eq in equipos %}
+          <option value="{{ eq.id_equipo }}">{{ eq.codigo_interno }} · {{ eq.nombre_equipo }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">Responsable *</label>
+        <select name="id_usuario" class="fc" required>
+          <option value="">— Seleccionar usuario —</option>
+          {% for u in usuarios %}
+          <option value="{{ u.id_usuario }}">{{ u.username }} · {{ u.nombre_persona }} {{ u.apellido_persona }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">Fecha de inicio *</label>
+        <input type="date" name="fecha_inicio_asignacion" class="fc" required>
+      </div>
+      <div class="fg">
+        <label class="fl">Observaciones</label>
+        <textarea name="observacion" class="fc" rows="2" placeholder="Motivo de la asignación..."></textarea>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('m-nueva-asig')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Crear asignación</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Nuevo Traslado -->
+<div class="modal-bg" id="m-nuevo-traslado">
+  <div class="modal" style="width:min(520px,100%)">
+    <div class="modal-hdr">
+      <div class="modal-ttl">🚑 Nuevo préstamo externo de equipo</div>
+      <button class="modal-x" onclick="closeModal('m-nuevo-traslado')">×</button>
+    </div>
+    <form method="POST" action="{{ url_for('admin_crear_traslado') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+      <div class="fg">
+        <label class="fl">Equipo en préstamo (solo Disponibles) *</label>
+        <select name="id_equipo" class="fc" required>
+          <option value="">— Seleccionar equipo —</option>
+          {% for eq in equipos_disponibles %}
+          <option value="{{ eq.id_equipo }}">{{ eq.codigo_interno }} · {{ eq.nombre_equipo }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="frow">
+        <div class="fg">
+          <label class="fl">Código ambulancia *</label>
+          <input type="text" name="codigo_ambulancia" class="fc" required placeholder="Ej: AMB-001">
+        </div>
+        <div class="fg">
+          <label class="fl">Conductor *</label>
+          <input type="text" name="conductor" class="fc" required placeholder="Nombre del conductor">
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fg">
+          <label class="fl">Fecha de salida *</label>
+          <input type="datetime-local" name="fecha_salida" class="fc" required>
+        </div>
+        <div class="fg">
+          <label class="fl">Tipo de traslado</label>
+          <select name="tipo_traslado" class="fc">
+            {% for tt in tipos_traslado %}
+            <option value="{{ tt.tipo_traslado }}">{{ tt.tipo_traslado }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="fg">
+        <label class="fl">Motivo</label>
+        <textarea name="motivo_traslado" class="fc" rows="2" placeholder="Descripción del préstamo..."></textarea>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('m-nuevo-traslado')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Registrar préstamo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script>
+'use strict';
+
+const RPT_ESTADOS      = {{ rpt_estados      | tojson | safe }};
+const RPT_MAS_MOV      = {{ rpt_mas_movidos  | tojson | safe }};
+const RPT_MOVS_MES     = {{ rpt_movs_por_mes | tojson | safe }};
+const DISP_AREA        = {{ disp_por_area    | tojson | safe }};
+
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: "'Outfit', sans-serif" } },
+  title: { text: '' },
+  credits: { enabled: false },
+  legend: { itemStyle: { color: '#8fa3b8', fontWeight: 'normal', fontSize: '11px' } }
+});
+
+const _axisStyle = { style: { color: '#8fa3b8', fontSize: '10px' } };
+const _gridLine  = 'rgba(221,229,238,.25)';
+
+function initCharts() {
+  // ── Serie de tiempo: movimientos por mes ──────────────────────────────────
+  if (RPT_MOVS_MES.length && document.getElementById('chart-movs-mes')) {
+    Highcharts.chart('chart-movs-mes', {
+      chart: { type: 'areaspline', height: 210 },
+      xAxis: {
+        categories: RPT_MOVS_MES.map(r => r.mes),
+        labels: { ...(_axisStyle), rotation: -30 },
+        lineColor: 'rgba(221,229,238,.4)', tickColor: 'transparent',
+        title: { text: 'Mes', ..._axisStyle }
+      },
+      yAxis: {
+        title: { text: 'Nº de movimientos registrados', ..._axisStyle },
+        gridLineColor: _gridLine, labels: _axisStyle, allowDecimals: false, min: 0
+      },
+      plotOptions: { areaspline: {
+        color: '#1d4ed8',
+        fillColor: { linearGradient: {x1:0,y1:0,x2:0,y2:1},
+          stops: [[0,'rgba(29,78,216,.22)'],[1,'rgba(29,78,216,.02)']] },
+        lineWidth: 2, marker: { radius: 4, fillColor:'#fff', lineWidth:2, lineColor:'#1d4ed8' }
+      }},
+      legend: { enabled: false },
+      tooltip: { headerFormat: '', pointFormat: '<b>{point.category}</b><br>Movimientos registrados ese mes: <b>{point.y}</b><br><span style="font-size:10px;color:#8fa3b8">Incluye traslados internos, reasignaciones y préstamos</span>' },
+      series: [{ name: 'Movimientos', data: RPT_MOVS_MES.map(r => r.total) }]
+    });
+  }
+
+  // ── Estado actual del inventario (donut) ──────────────────────────────────
+  if (RPT_ESTADOS.length && document.getElementById('chart-estados-adm')) {
+    const palEst = ['#16a34a','#2563eb','#d97706','#dc2626','#7c3aed','#6b7280'];
+    Highcharts.chart('chart-estados-adm', {
+      chart: { type: 'pie', height: 210 },
+      plotOptions: { pie: {
+        innerSize: '55%', dataLabels: { enabled: false },
+        showInLegend: true, borderWidth: 2, borderColor: '#fff'
+      }},
+      legend: { layout: 'horizontal', align: 'center', verticalAlign: 'bottom', itemMarginBottom: 2 },
+      tooltip: { pointFormat: '<b>{point.name}</b>: {point.y} equipos ({point.percentage:.1f}% del total activo)' },
+      series: [{ name: 'Equipos', data: RPT_ESTADOS.map((r,i) => ({
+        name: r.estado_equipo, y: r.total, color: palEst[i % palEst.length]
+      }))}]
+    });
+  }
+
+  // ── Disponibilidad operativa por área (barras horizontales con semáforo) ──
+  if (DISP_AREA.length && document.getElementById('chart-eficiencia-area')) {
+    Highcharts.chart('chart-eficiencia-area', {
+      chart: { type: 'bar', height: 210 },
+      xAxis: {
+        categories: DISP_AREA.map(r => r.nombre_area),
+        labels: _axisStyle, lineColor: 'rgba(221,229,238,.4)', tickColor: 'transparent'
+      },
+      yAxis: {
+        min: 0, max: 100,
+        title: { text: '% Equipos disponibles (0 = ninguno disponible, 100 = todos disponibles)', ..._axisStyle },
+        gridLineColor: _gridLine, labels: { ...(_axisStyle), format: '{value}%' }
+      },
+      plotOptions: { bar: {
+        borderRadius: 4, dataLabels: { enabled: true, format: '{y}%', style: { fontWeight:'600', fontSize:'10px', color:'#4a627a', textOutline:'none' } }
+      }},
+      legend: { enabled: false },
+      tooltip: { headerFormat: '', pointFormat: '<b>{point.category}</b><br>Disponibilidad: <b>{point.y}%</b><br><span style="font-size:10px;color:#8fa3b8">Equipos listos para uso clínico sobre el total asignado al área</span>' },
+      series: [{ name: '% Disponibilidad', data: DISP_AREA.map(r => ({
+        y: parseFloat(r.porcentaje_disponibilidad) || 0,
+        color: r.porcentaje_disponibilidad >= 80 ? '#16a34a' : r.porcentaje_disponibilidad >= 60 ? '#d97706' : '#dc2626'
+      }))}]
+    });
+  }
+
+  // ── Top equipos más movidos (barras verticales) ───────────────────────────
+  if (RPT_MAS_MOV.length && document.getElementById('chart-top-movidos')) {
+    const top8 = RPT_MAS_MOV.slice(0, 8);
+    Highcharts.chart('chart-top-movidos', {
+      chart: { type: 'column', height: 210 },
+      xAxis: {
+        categories: top8.map(r => r.nombre_equipo.length > 20 ? r.nombre_equipo.slice(0,20)+'…' : r.nombre_equipo),
+        labels: { ..._axisStyle, rotation: -25 },
+        title: { text: 'Equipo', ..._axisStyle },
+        lineColor: 'rgba(221,229,238,.4)', tickColor: 'transparent'
+      },
+      yAxis: {
+        title: { text: 'Nº de movimientos físicos registrados', ..._axisStyle },
+        gridLineColor: _gridLine, labels: _axisStyle, allowDecimals: false
+      },
+      plotOptions: { column: { borderRadius: 4, color: '#0e7490', dataLabels: { enabled: true, style: { fontSize:'10px', color:'#4a627a', textOutline:'none' } } } },
+      legend: { enabled: false },
+      tooltip: { headerFormat: '', pointFormat: '<b>{point.category}</b><br>Movimientos físicos registrados: <b>{point.y}</b><br><span style="font-size:10px;color:#8fa3b8">Suma de todos los traslados, reasignaciones y préstamos del equipo</span>' },
+      series: [{ name: 'Movimientos', data: top8.map(r => r.total_movimientos) }]
+    });
+  }
+}
+
+function filterTable(inp, tableId) {
+  const q = inp.value.toLowerCase();
+  document.querySelectorAll('#' + tableId + ' tbody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function switchIoTTab(id, btn) {
+  document.querySelectorAll('#v-iot .tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#v-iot .tab-iot').forEach(b => b.classList.remove('active'));
+  const pane = document.getElementById(id);
+  if (pane) pane.classList.add('active');
+  if (btn)  btn.classList.add('active');
+}
+
+const ICONS   = { eliminar:'🗑️', liberar:'🔓', desactivar:'🔒', activar:'🔓', reactivar:'♻️' };
+const LABELS  = { eliminar:'Eliminar', liberar:'Liberar', desactivar:'Desactivar', activar:'Activar', reactivar:'Reactivar' };
+const DANGERS = { eliminar:true, liberar:false, desactivar:true, activar:false, reactivar:false };
+
+function openConfirm(title, nombre, codigo, accion, url) {
+  document.getElementById('mc-title').textContent = title;
+  document.getElementById('mc-icon').textContent  = ICONS[accion] || '⚠️';
+  document.getElementById('mc-body').textContent  = 'Esta acción modificará el registro. ¿Deseas continuar?';
+  document.getElementById('mc-detail').innerHTML  =
+    '<strong>Nombre:</strong> ' + nombre + '<br><strong>Código / ID:</strong> ' + codigo;
+  document.getElementById('mc-form').action = url;
+  const btn = document.getElementById('mc-submit-btn');
+  btn.textContent = LABELS[accion] || 'Confirmar';
+  btn.className   = DANGERS[accion] ? 'btn btn-danger' : 'btn btn-amber';
+  openModal('m-confirm');
+}
+
+function openEditEquipo(id, nombre, estado, marca, modelo) {
+  document.getElementById('meq-title').textContent   = '✏️ Editar equipo';
+  document.getElementById('meq-id').value            = id;
+  document.getElementById('meq-nombre').value        = nombre;
+  document.getElementById('meq-estado').value        = estado;
+  document.getElementById('meq-marca').value         = marca;
+  document.getElementById('meq-modelo').value        = modelo;
+  document.getElementById('meq-submit').textContent  = 'Guardar cambios';
+  document.getElementById('meq-form').action =
+    '{{ url_for("admin_editar_equipo_master", id=0) }}'.replace('/0', '/' + id);
+  openModal('m-nuevo-equipo');
+}
+
+function resetModalEquipo() {
+  document.getElementById('meq-title').textContent  = '🔬 Nuevo equipo';
+  document.getElementById('meq-id').value           = '';
+  document.getElementById('meq-form').reset();
+  document.getElementById('meq-form').action        = '{{ url_for("admin_crear_equipo") }}';
+  document.getElementById('meq-submit').textContent = 'Guardar equipo';
+}
+
+async function refreshIoT() {
+  const urlEl = document.getElementById('iot-refresh-url');
+  const url   = urlEl?.dataset?.url;
+  if (!url) return;
+  try {
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (!data.ok) return;
+    const disc = document.getElementById('kpi-disc');
+    if (disc) { disc.textContent = data.total_alertas; disc.className = 'kpi-val ' + (data.total_alertas > 0 ? 'kpi-red' : 'kpi-green'); }
+    const sin  = document.getElementById('kpi-sin');
+    if (sin)  { const cnt = data.sin_evidencia?.length ?? 0; sin.textContent = cnt; sin.className = 'kpi-val ' + (cnt > 0 ? 'kpi-amber' : 'kpi-green'); }
+    const ts = document.getElementById('iot-refresh-ts');
+    if (ts) ts.textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-MX');
+    toast('Datos IoT actualizados', true);
+  } catch(e) { toast('Error al actualizar IoT', false); }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Filtrar solo equipos con actividad
-  const activos = usoMantData.filter(r => r.total_usos > 0 || r.total_mants > 0);
-  const labels  = activos.map(r => r.codigo_interno);
-  const usos    = activos.map(r => r.total_usos);
-  const mants   = activos.map(r => r.total_mants);
+  HospitalIoT.sidebar.highlightActive();
 
-  // Gráfica 1: Barras agrupadas uso clínico vs mantenimiento
-  const ctx1 = document.getElementById('chart-uso-mant');
-  if (ctx1) {
-    new Chart(ctx1, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [
-          { label: 'Usos clínicos', data: usos, backgroundColor: 'rgba(14,116,144,.82)', borderRadius: 4, borderSkipped: false },
-          { label: 'Mantenimientos', data: mants, backgroundColor: 'rgba(180,83,9,.72)', borderRadius: 4, borderSkipped: false }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-          y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } }
-        }
-      }
-    });
+  document.querySelectorAll('.adm-shortcut[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => goTo(btn.dataset.view));
+  });
+
+  let chartsReady = false;
+  const obs = new MutationObserver(() => {
+    const rpt = document.getElementById('v-reportes');
+    if (rpt && (rpt.classList.contains('act') || rpt.classList.contains('active')) && !chartsReady) {
+      chartsReady = true;
+      initCharts();
+    }
+  });
+  const main = document.querySelector('.main');
+  if (main) obs.observe(main, { subtree:true, attributeFilter:['class'] });
+
+  if (location.hash === '#v-reportes') {
+    setTimeout(() => { initCharts(); chartsReady = true; }, 80);
   }
 
-  // Gráfica 2: Doughnut distribución de estados
-  const ctx2 = document.getElementById('chart-estados');
-  if (ctx2 && estadosData.length > 0) {
-    const estadoColores = {
-      'Disponible': '#047857', 'En uso': '#0e7490',
-      'En mantenimiento': '#b45309', 'Fuera de servicio': '#b91c1c',
-      'Reservado': '#1d4ed8', 'En traslado': '#1d4ed8',
-      'Dañado': '#b91c1c', 'Calibración': '#b45309',
-      'Limpieza': '#b45309', 'Inactivo': '#8fa3b8'
-    };
-    new Chart(ctx2, {
-      type: 'doughnut',
-      data: {
-        labels: estadosData.map(r => r.estado_equipo),
-        datasets: [{
-          data: estadosData.map(r => r.total),
-          backgroundColor: estadosData.map(r => estadoColores[r.estado_equipo] || '#8fa3b8'),
-          borderWidth: 2, borderColor: '#fff', hoverOffset: 6
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        cutout: '62%',
-        plugins: {
-          legend: { position: 'right', labels: { font: { size: 10 }, padding: 10, boxWidth: 10 } }
-        }
-      }
+  if (document.getElementById('iot-panel-root')) setInterval(refreshIoT, 60_000);
+
+  setTimeout(() => {
+    document.querySelectorAll('.flash-msg').forEach(el => {
+      el.style.transition = 'opacity .4s'; el.style.opacity = '0';
+      setTimeout(() => el.remove(), 400);
     });
-  }
+  }, 5000);
 });
 </script>
-{% endblock %}
+</body>
+</html>

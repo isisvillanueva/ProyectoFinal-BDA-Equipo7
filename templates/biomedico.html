@@ -1,8 +1,15 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HospitalIoT — Biomédico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
 {% from 'macros.html' import flash_msgs, estado_badge, resultado_badge, bar_h %}
-{% block title %}HospitalIoT — Biomédico{% endblock %}
 
-{% block body %}
 <div class="app">
   <aside class="sidebar">
     <div class="sb-top">
@@ -19,6 +26,10 @@
       <button class="sbn-item" data-view="v-criticos"  onclick="goTo('v-criticos')">
         <span class="sbn-ic">⚠️</span>Equipos críticos
         {% if criticos %}<span class="sbn-num">{{ criticos|length }}</span>{% endif %}
+      </button>
+      <button class="sbn-item" data-view="v-programados" onclick="goTo('v-programados')">
+        <span class="sbn-ic">📅</span>Programados
+        {% if programados_pendientes %}<span class="sbn-num">{{ programados_pendientes|length }}</span>{% endif %}
       </button>
       <button class="sbn-item" data-view="v-carga"     onclick="goTo('v-carga')"><span class="sbn-ic">📊</span>Carga de trabajo</button>
     </nav>
@@ -49,8 +60,10 @@
         <div class="stats">
           <div class="stat" style="--sc:var(--amber)"><div class="st-ico">🔧</div><div class="st-label">Mis mantenimientos</div><div class="st-val">{{ mis_mants|length }}</div></div>
           <div class="stat" style="--sc:var(--green)"><div class="st-ico">✅</div><div class="st-label">Exitosos</div><div class="st-val">{{ mis_mants|selectattr('resultado_mantenimiento','in',['Exitoso','Sin falla'])|list|length }}</div></div>
-          <div class="stat" style="--sc:var(--red)"><div class="st-ico">⚠️</div><div class="st-label">Problemáticos</div><div class="st-val">{{ mis_mants|selectattr('resultado_mantenimiento','in',['Fallido','Parcial','Requiere refacción','Reemplazo necesario'])|list|length }}</div></div>
+          <div class="stat" style="--sc:var(--red)"><div class="st-ico">⚠️</div><div class="st-label">Problemáticos</div><div class="st-val">{{ mis_mants|selectattr('resultado_mantenimiento','in',['Fallido','Requiere reemplazo'])|list|length }}</div></div>
           <div class="stat" style="--sc:var(--red)"><div class="st-ico">🚨</div><div class="st-label">Críticos (sistema)</div><div class="st-val">{{ criticos|length }}</div></div>
+          <div class="stat" style="--sc:var(--amber)"><div class="st-ico">📅</div><div class="st-label">Programados pendientes</div><div class="st-val">{{ programados_pendientes|length }}</div></div>
+          <div class="stat" style="--sc:var(--purple)"><div class="st-ico">🔔</div><div class="st-label">Alertas preventivas</div><div class="st-val">{{ alertas_preventivas|length }}</div></div>
         </div>
         <div class="two">
           <div class="card">
@@ -63,7 +76,7 @@
                   <td><strong>{{ m.nombre_equipo }}</strong></td>
                   <td><span class="badge b-blue">{{ m.tipo_mantenimiento }}</span></td>
                   <td>{{ resultado_badge(m.resultado_mantenimiento) }}</td>
-                  <td><span class="mono">{{ m.fecha_mantenimiento.strftime('%d/%m/%Y') if m.fecha_mantenimiento else '—' }}</span></td>
+                  <td><span class="mono">{{ m.fecha_hora_mantenimiento.strftime('%d/%m/%Y %H:%M') if m.fecha_hora_mantenimiento else '—' }}</span></td>
                 </tr>
                 {% else %}<tr><td colspan="4" class="empty">Sin mantenimientos</td></tr>{% endfor %}
               </tbody>
@@ -81,13 +94,45 @@
             </div>
           </div>
         </div>
+        <div class="two" style="margin-top:16px">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">📅 Próximos mantenimientos programados</span><button class="btn btn-sm" onclick="goTo('v-programados')" style="font-size:10px">Ver todos</button></div>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Equipo</th><th>Tipo</th><th>Prioridad</th><th>Próximo</th><th>Estado</th></tr></thead>
+              <tbody>
+                {% for p in programados_pendientes[:5] %}
+                <tr>
+                  <td><strong>{{ p.nombre_equipo }}</strong><br><span class="cod">{{ p.codigo_interno }}</span></td>
+                  <td>{{ p.tipo_mantenimiento }}</td>
+                  <td><span class="badge {% if p.prioridad_mantenimiento == 'Alta' %}b-red{% elif p.prioridad_mantenimiento == 'Media' %}b-amber{% else %}b-blue{% endif %}">{{ p.prioridad_mantenimiento }}</span></td>
+                  <td><span class="mono">{{ p.fecha_proximo_mantenimiento.strftime('%d/%m/%Y') if p.fecha_proximo_mantenimiento else '—' }}</span></td>
+                  <td><span class="badge {% if p.alerta == 'vencido' %}b-red{% else %}b-amber{% endif %}">{{ p.alerta }}</span></td>
+                </tr>
+                {% else %}<tr><td colspan="5" class="empty">Sin programados pendientes</td></tr>{% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🔔 Alertas preventivas</span></div>
+            <div class="card-body">
+              {% for a in alertas_preventivas[:5] %}
+              <div class="al {% if a.estado_alerta == 'SIN REGISTRO' %}er{% else %}wa{% endif %}" style="margin-bottom:8px">
+                <span class="al-ic">{% if a.estado_alerta == 'SIN REGISTRO' %}🔴{% else %}🟡{% endif %}</span>
+                <div class="al-b">
+                  <strong>{{ a.nombre_equipo }}</strong>
+                  <span><span class="cod">{{ a.codigo_interno }}</span> · Criticidad: {{ a.criticidad_equipo }} · {{ a.estado_alerta }}</span>
+                </div>
+              </div>
+              {% else %}<div class="al ok"><span class="al-ic">✅</span><div class="al-b"><strong>Sin alertas preventivas</strong></div></div>{% endfor %}
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- ══ REPORTES ══ -->
       <section id="v-reportes" class="view">
         <div class="phdr">
-          <div><div class="ptitle">Reportes de <em>Mantenimiento</em></div><div class="psub">Análisis técnico del parque de equipos — datos reales de BD</div></div>
-          <div style="display:flex;gap:8px"><span class="pill">📊 Chart.js 4</span><span class="pill">🔄 Datos en vivo</span></div>
+          <div><div class="ptitle">Reportes de <em>Mantenimiento</em></div><div class="psub">Análisis técnico del parque de equipos</div></div>
         </div>
 
         <div class="rpt-kpi-grid">
@@ -100,10 +145,10 @@
           </div>
           <div class="rpt-kpi" style="--kc:var(--green)">
             <div class="rpt-kpi-icon">✅</div>
-            <div class="rpt-kpi-val">{{ rpt_por_resultado|selectattr('resultado_mantenimiento','in',['Exitoso','Sin falla'])|sum(attribute='total') }}</div>
+            <div class="rpt-kpi-val">{{ rpt_por_resultado|selectattr('resultado_mantenimiento','equalto','Exitoso')|sum(attribute='total') }}</div>
             <div class="rpt-kpi-label">Resultados exitosos</div>
             <div class="rpt-kpi-sub">En todo el sistema</div>
-            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--green);width:{{ (((rpt_por_resultado|selectattr('resultado_mantenimiento','in',['Exitoso','Sin falla'])|sum(attribute='total'))/(rpt_por_resultado|sum(attribute='total') or 1))*100)|int }}%"></div></div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--green);width:{{ (((rpt_por_resultado|selectattr('resultado_mantenimiento','equalto','Exitoso')|sum(attribute='total'))/(rpt_por_resultado|sum(attribute='total') or 1))*100)|int }}%"></div></div>
           </div>
           <div class="rpt-kpi" style="--kc:var(--red)">
             <div class="rpt-kpi-icon">⚠️</div>
@@ -119,41 +164,43 @@
             <div class="rpt-kpi-sub">Categorizados en el sistema</div>
             <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--blue);width:{{ [rpt_por_tipo_mant|length * 10, 100]|min }}%"></div></div>
           </div>
+          <div class="rpt-kpi" style="--kc:var(--purple)">
+            <div class="rpt-kpi-icon">💰</div>
+            <div class="rpt-kpi-val">{% if costo_stats.promedio_costo %}${{ costo_stats.promedio_costo|int }}{% else %}—{% endif %}</div>
+            <div class="rpt-kpi-label">Costo promedio / mant.</div>
+            <div class="rpt-kpi-sub">Basado en {{ costo_stats.con_costo }} registros con costo</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--purple);width:{% if costo_stats.promedio_costo %}{{ [((costo_stats.promedio_costo / 5000) * 100)|int, 100]|min }}{% else %}0{% endif %}%"></div></div>
+          </div>
         </div>
 
-        <div class="rpt-section-label"><span class="rpt-section-tag">// gráficas</span>Visualizaciones de BD</div>
+        <div class="rpt-section-label"><span class="rpt-section-tag">Análisis</span>Tendencia y distribución de mantenimiento</div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-hdr">
+            <span class="card-ttl">📈 Evolución mensual de mantenimientos</span>
+            <span style="font-size:10px;color:var(--tx3)">Tendencia histórica · MongoDB</span>
+          </div>
+          <div class="card-body rpt-chart-body"><div id="chart-serie-tiempo" style="height:100%;min-height:200px"></div></div>
+        </div>
 
         <div class="rpt-charts-grid">
           <div class="card">
-            <div class="card-hdr">
-              <span class="card-ttl">📊 Mantenimientos por tipo</span>
-              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:rgba(29,78,216,.8)"></span>Cantidad</span>
-            </div>
-            <div class="card-body rpt-chart-body"><canvas id="chart-tipos-mant"></canvas></div>
+            <div class="card-hdr"><span class="card-ttl">🥧 Distribución de resultados</span></div>
+            <div class="card-body rpt-chart-body"><div id="chart-resultados" style="height:100%;min-height:180px"></div></div>
           </div>
           <div class="card">
-            <div class="card-hdr">
-              <span class="card-ttl">🥧 Distribución de resultados</span>
-              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:var(--green)"></span>Exitoso &nbsp;<span class="rpt-leg-dot" style="background:var(--red)"></span>Fallido &nbsp;<span class="rpt-leg-dot" style="background:var(--amber)"></span>Parcial</span>
+            <div class="card-hdr"><span class="card-ttl">🏆 Equipos con más mantenimientos</span></div>
+            <div class="card-body">
+              {% set mx_eq = rpt_equipos_mas_mant[0].total_mants if rpt_equipos_mas_mant else 1 %}
+              {% for r in rpt_equipos_mas_mant %}
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                <div style="width:130px;font-size:11px;font-weight:600;color:var(--tx);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.nombre_equipo }}</div>
+                <div style="flex:1">{{ bar_h(r.total_mants, mx_eq, 'var(--amber)') }}</div>
+                <span class="badge b-amber" style="flex-shrink:0">{{ r.total_mants }}</span>
+                <span class="mono" style="font-size:10px;color:var(--tx3);flex-shrink:0" title="Fecha del último mantenimiento">Último: {{ r.ultimo_mant.strftime('%d/%m/%Y') if r.ultimo_mant else '—' }}</span>
+              </div>
+              {% else %}<div class="empty">Sin datos</div>{% endfor %}
             </div>
-            <div class="card-body rpt-chart-body"><canvas id="chart-resultados"></canvas></div>
-          </div>
-        </div>
-
-        <div class="rpt-section-label"><span class="rpt-section-tag">// top equipos</span>Más mantenidos del sistema</div>
-
-        <div class="card">
-          <div class="card-hdr"><span class="card-ttl">🏆 Equipos con más mantenimientos registrados</span></div>
-          <div class="card-body">
-            {% set mx_eq = rpt_equipos_mas_mant[0].total_mants if rpt_equipos_mas_mant else 1 %}
-            {% for r in rpt_equipos_mas_mant %}
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-              <div style="width:150px;font-size:11px;font-weight:600;color:var(--tx);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.nombre_equipo }}</div>
-              <div style="flex:1">{{ bar_h(r.total_mants, mx_eq, 'var(--amber)') }}</div>
-              <span class="badge b-amber" style="flex-shrink:0">{{ r.total_mants }}</span>
-              <span class="mono" style="font-size:10px;color:var(--tx3);flex-shrink:0">{{ r.ultimo_mant.strftime('%d/%m/%y') if r.ultimo_mant else '—' }}</span>
-            </div>
-            {% else %}<div class="empty">Sin datos</div>{% endfor %}
           </div>
         </div>
       </section>
@@ -188,7 +235,7 @@
               <div class="fg"><label class="fl">Descripción del trabajo realizado</label>
                 <textarea class="fc" name="descripcion" rows="3" placeholder="Describe el mantenimiento realizado…" required></textarea>
               </div>
-              <div class="fg"><label class="fl">Biomédico responsable</label><input class="fc" value="{{ session.nombre }}" readonly></div>
+              <div class="fg"><label class="fl">Biomédico responsable</label><input class="fc" value="{{ session.nombre_completo or session.nombre }}" readonly></div>
               <div class="al wn" style="margin-bottom:16px">
                 <span class="al-ic">⚠️</span>
                 <div class="al-b"><strong>Trigger automático</strong><span>El resultado actualizará el estado del equipo en la BD automáticamente (fn_actualizar_estado_equipo_por_mantenimiento).</span></div>
@@ -212,7 +259,7 @@
                 <td><span class="badge b-blue">{{ m.tipo_mantenimiento }}</span></td>
                 <td>{{ resultado_badge(m.resultado_mantenimiento) }}</td>
                 <td><span style="font-size:11px;color:var(--tx3);max-width:180px;display:block">{{ m.descripcion_mantenimiento }}</span></td>
-                <td><span class="mono">{{ m.fecha_mantenimiento.strftime('%d/%m/%Y %H:%M') if m.fecha_mantenimiento else '—' }}</span></td>
+                <td><span class="mono">{{ m.fecha_hora_mantenimiento.strftime('%d/%m/%Y %H:%M') if m.fecha_hora_mantenimiento else '—' }}</span></td>
                 <td>
                   <div style="display:flex;gap:5px">
                     <button class="btn btn-secondary btn-sm" onclick='abrirEditarMant({{ m|tojson }})'>✏️ Editar</button>
@@ -236,7 +283,7 @@
           <span class="al-ic">🚨</span>
           <div class="al-b" style="flex:1">
             <strong>{{ c.nombre_equipo }}</strong>
-            <span><span class="cod">{{ c.codigo_interno }}</span> · Resultado: {{ resultado_badge(c.resultado_mantenimiento) }} · Estado: {{ estado_badge(c.estado_equipo) }} · Último: <span class="mono">{{ c.fecha_mantenimiento.strftime('%d/%m/%Y') if c.fecha_mantenimiento else '—' }}</span></span>
+            <span><span class="cod">{{ c.codigo_interno }}</span> · Resultado: {{ resultado_badge(c.resultado_mantenimiento) }} · Estado: {{ estado_badge(c.estado_equipo) }} · Último: <span class="mono">{{ c.fecha_hora_mantenimiento.strftime('%d/%m/%Y %H:%M') if c.fecha_hora_mantenimiento else '—' }}</span></span>
           </div>
           <button class="btn btn-amber btn-sm" onclick="goTo('v-registrar')">Atender</button>
         </div>
@@ -247,14 +294,46 @@
 
       <!-- ══ CARGA ══ -->
       <section id="v-carga" class="view">
-        <div class="phdr"><div><div class="ptitle">Carga de <em>Trabajo</em></div><div class="psub">Distribución de mantenimientos — fn_reporte_carga_biomedica</div></div></div>
+        <div class="phdr"><div><div class="ptitle">Carga de <em>Trabajo</em></div><div class="psub">Composición y cumplimiento del trabajo biomédico en el período</div></div></div>
+
+        {% set sla_pct = ((sla_stats.dentro_sla / sla_stats.programados * 100)|int) if sla_stats.programados > 0 else 0 %}
+        <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+          <div class="rpt-kpi" style="--kc:#0e7490;flex:1;min-width:140px">
+            <div class="rpt-kpi-icon">✅</div>
+            <div class="rpt-kpi-val">{{ sla_pct }}%</div>
+            <div class="rpt-kpi-label">Cumplimiento SLA</div>
+            <div class="rpt-kpi-sub">{{ sla_stats.dentro_sla }} de {{ sla_stats.programados }} programados</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:#0e7490;width:{{ sla_pct }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--amber);flex:1;min-width:140px">
+            <div class="rpt-kpi-icon">🔧</div>
+            <div class="rpt-kpi-val">{{ sla_stats.total }}</div>
+            <div class="rpt-kpi-label">Total mantenimientos</div>
+            <div class="rpt-kpi-sub">{{ sla_stats.programados }} programados · {{ sla_stats.total - sla_stats.programados }} libres</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--amber);width:100%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--green);flex:1;min-width:140px">
+            <div class="rpt-kpi-icon">📋</div>
+            <div class="rpt-kpi-val">{{ mants_por_tipo_equipo|length }}</div>
+            <div class="rpt-kpi-label">Tipos de equipo atendidos</div>
+            <div class="rpt-kpi-sub">{% if mants_por_tipo_equipo %}{{ mants_por_tipo_equipo[0].tipo_equipo }} ({{ mants_por_tipo_equipo[0].total }} mant.){% else %}—{% endif %}</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--green);width:{{ [mants_por_tipo_equipo|length * 20, 100]|min }}%"></div></div>
+          </div>
+        </div>
+
         <div class="two">
           <div class="card">
-            <div class="card-hdr"><span class="card-ttl">📊 Distribución por biomédico</span></div>
-            <div class="card-body rpt-chart-body"><canvas id="chart-carga"></canvas></div>
+            <div class="card-hdr">
+              <span class="card-ttl">📊 Mantenimientos por tipo</span>
+              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:rgba(29,78,216,.8)"></span>Cantidad</span>
+            </div>
+            <div class="card-body rpt-chart-body"><div id="chart-tipos-mant" style="height:100%;min-height:180px"></div></div>
           </div>
           <div class="card">
-            <div class="card-hdr"><span class="card-ttl">📋 Detalle de carga</span></div>
+            <div class="card-hdr">
+              <span class="card-ttl">📋 Carga por biomédico</span>
+              <span style="font-size:10px;color:var(--tx3)">Mantenimientos registrados en el período</span>
+            </div>
             <div class="card-body">
               {% set mx = carga[0].total_mantenimientos if carga else 1 %}
               {% for c in carga %}
@@ -268,6 +347,80 @@
               {% else %}<div class="empty">Sin datos de carga</div>{% endfor %}
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- ══ PROGRAMADOS ══ -->
+      <section id="v-programados" class="view">
+        <div class="phdr"><div><div class="ptitle">Mantenimientos <em>Programados</em></div><div class="psub">Calendario de mantenimientos pendientes y alertas preventivas</div></div></div>
+
+        <div class="two" style="margin-bottom:16px">
+          <div class="rpt-kpi" style="--kc:var(--amber)">
+            <div class="rpt-kpi-icon">📅</div>
+            <div class="rpt-kpi-val">{{ programados_pendientes|length }}</div>
+            <div class="rpt-kpi-label">Programados pendientes</div>
+            <div class="rpt-kpi-sub">Órdenes de mantenimiento por ejecutar</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--amber);width:{{ [programados_pendientes|length * 10, 100]|min }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--purple)">
+            <div class="rpt-kpi-icon">🔔</div>
+            <div class="rpt-kpi-val">{{ alertas_preventivas|length }}</div>
+            <div class="rpt-kpi-label">Alertas preventivas</div>
+            <div class="rpt-kpi-sub">Equipos sin registro reciente o vencidos</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--purple);width:{{ [alertas_preventivas|length * 10, 100]|min }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--red)">
+            <div class="rpt-kpi-icon">🚨</div>
+            <div class="rpt-kpi-val">{{ programados_pendientes|selectattr('alerta','equalto','vencido')|list|length }}</div>
+            <div class="rpt-kpi-label">Vencidos</div>
+            <div class="rpt-kpi-sub">Mantenimientos con fecha ya pasada</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--red);width:{{ [programados_pendientes|selectattr('alerta','equalto','vencido')|list|length * 20, 100]|min }}%"></div></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-hdr"><span class="card-ttl">📅 Mantenimientos programados pendientes</span></div>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead>
+              <tr><th>Equipo</th><th>Código</th><th>Tipo</th><th>Prioridad</th><th>Último mant.</th><th>Próximo</th><th>Frecuencia</th><th>SLA</th><th>Estado</th></tr>
+            </thead>
+            <tbody>
+              {% for p in programados_pendientes %}
+              <tr>
+                <td><strong>{{ p.nombre_equipo }}</strong></td>
+                <td><span class="cod">{{ p.codigo_interno }}</span></td>
+                <td>{{ p.tipo_mantenimiento }}</td>
+                <td><span class="badge {% if p.prioridad_mantenimiento == 'Alta' %}b-red{% elif p.prioridad_mantenimiento == 'Media' %}b-amber{% else %}b-blue{% endif %}">{{ p.prioridad_mantenimiento }}</span></td>
+                <td><span class="mono">{{ p.fecha_ultimo_mantenimiento.strftime('%d/%m/%Y') if p.fecha_ultimo_mantenimiento else '—' }}</span></td>
+                <td><span class="mono">{{ p.fecha_proximo_mantenimiento.strftime('%d/%m/%Y') if p.fecha_proximo_mantenimiento else '—' }}</span></td>
+                <td>Cada {{ p.frecuencia_dias }}d</td>
+                <td>{{ p.sla_horas }}h</td>
+                <td><span class="badge {% if p.alerta == 'vencido' %}b-red{% else %}b-amber{% endif %}">{{ p.alerta }}</span></td>
+              </tr>
+              {% else %}<tr><td colspan="9" class="empty">Sin mantenimientos programados pendientes</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">🔔 Alertas preventivas — equipos sin mantenimiento reciente</span></div>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead>
+              <tr><th>Equipo</th><th>Código</th><th>Criticidad</th><th>Último mant.</th><th>Próximo sugerido</th><th>Estado</th></tr>
+            </thead>
+            <tbody>
+              {% for a in alertas_preventivas %}
+              <tr>
+                <td><strong>{{ a.nombre_equipo }}</strong></td>
+                <td><span class="cod">{{ a.codigo_interno }}</span></td>
+                <td><span class="badge {% if a.criticidad_equipo == 'Alta' %}b-red{% elif a.criticidad_equipo == 'Media' %}b-amber{% else %}b-blue{% endif %}">{{ a.criticidad_equipo }}</span></td>
+                <td><span class="mono">{{ a.ultimo_mant.strftime('%d/%m/%Y') if a.ultimo_mant else '—' }}</span></td>
+                <td><span class="mono">{{ a.prox_mant_sugerido.strftime('%d/%m/%Y') if a.prox_mant_sugerido else '—' }}</span></td>
+                <td><span class="badge {% if a.estado_alerta == 'SIN REGISTRO' %}b-red{% else %}b-amber{% endif %}">{{ a.estado_alerta }}</span></td>
+              </tr>
+              {% else %}<tr><td colspan="6" class="empty">Sin alertas preventivas</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
         </div>
       </section>
 
@@ -298,18 +451,23 @@
     </form>
   </div>
 </div>
-{% endblock %}
+<div id="toast"></div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
 
-{% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://code.highcharts.com/highcharts.js"></script>
 <script>
-const tiposMantData  = {{ rpt_por_tipo_mant | tojson }};
-const resultadosData = {{ rpt_por_resultado | tojson }};
-const cargaData      = {{ carga | tojson }};
+const tiposMantData     = {{ rpt_por_tipo_mant | tojson }};
+const resultadosData    = {{ rpt_por_resultado | tojson }};
+const cargaData         = {{ carga | tojson }};
+const tipoEquipoData    = {{ mants_por_tipo_equipo | tojson }};
+const serieTiempoData   = {{ rpt_mants_por_mes | tojson }};
 
-Chart.defaults.font.family = "'Outfit', sans-serif";
-Chart.defaults.color = '#8fa3b8';
-Chart.defaults.borderColor = 'rgba(221,229,238,.4)';
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: "'Outfit', sans-serif" } },
+  title: { text: '' },
+  credits: { enabled: false },
+  legend: { itemStyle: { color: '#8fa3b8', fontWeight: 'normal', fontSize: '11px' } }
+});
 
 function abrirEditarMant(m) {
   document.getElementById('em-tipo').value = m.id_tipo_mantenimiento;
@@ -320,56 +478,62 @@ function abrirEditarMant(m) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Barras por tipo
-  const ctx1 = document.getElementById('chart-tipos-mant');
-  if (ctx1 && tiposMantData.length > 0) {
-    new Chart(ctx1, {
-      type: 'bar',
-      data: {
-        labels: tiposMantData.map(r => r.tipo_mantenimiento.substring(0,14)),
-        datasets: [{ label: 'Mantenimientos', data: tiposMantData.map(r => r.total),
-          backgroundColor: 'rgba(29,78,216,.78)', borderRadius: 4, borderSkipped: false }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } }, y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } } }
-      }
+  // Barras por tipo de mantenimiento — fuente: MongoDB (mg_rpt_por_tipo_mant)
+  if (tiposMantData.length > 0) {
+    Highcharts.chart('chart-tipos-mant', {
+      chart: { type: 'column', height: 210 },
+      xAxis: { categories: tiposMantData.map(r => r.tipo_mantenimiento), labels: { style: { color: '#8fa3b8', fontSize: '9px' } }, lineColor: 'rgba(221,229,238,.4)', tickColor: 'transparent' },
+      yAxis: { title: { text: 'Cantidad', style: { color: '#8fa3b8', fontSize: '10px' } }, gridLineColor: 'rgba(221,229,238,.2)', labels: { style: { color: '#8fa3b8', fontSize: '10px' } }, allowDecimals: false },
+      plotOptions: { column: { borderRadius: 4, color: 'rgba(29,78,216,.78)' } },
+      legend: { enabled: false },
+      tooltip: { headerFormat: '', pointFormat: '<b>{point.category}</b>: {point.y} mantenimientos registrados' },
+      series: [{ name: 'Mantenimientos', data: tiposMantData.map(r => r.total) }]
     });
   }
 
-  // Doughnut resultados
-  const ctx2 = document.getElementById('chart-resultados');
-  if (ctx2 && resultadosData.length > 0) {
-    const colR = { 'Exitoso':'#047857','Sin falla':'#047857','Fallido':'#b91c1c','Parcial':'#b45309','Requiere refacción':'#b45309','Reemplazo necesario':'#b91c1c','Pendiente':'#8fa3b8','Reprogramado':'#1d4ed8','Cancelado':'#8fa3b8','En proceso':'#1d4ed8' };
-    new Chart(ctx2, {
-      type: 'doughnut',
-      data: {
-        labels: resultadosData.map(r => r.resultado_mantenimiento),
-        datasets: [{ data: resultadosData.map(r => r.total), backgroundColor: resultadosData.map(r => colR[r.resultado_mantenimiento]||'#8fa3b8'), borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
-      },
-      options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'right', labels: { font: { size: 10 }, padding: 8, boxWidth: 10 } } } }
+  // Donut de resultados — fuente: MongoDB (mg_rpt_por_resultado)
+  const colR = { 'Exitoso':'#16a34a','Fallido':'#dc2626','Pendiente de revisión':'#d97706','Requiere reemplazo':'#7c3aed','Reprogramado':'#2563eb','Cancelado':'#6b7280' };
+  if (resultadosData.length > 0) {
+    Highcharts.chart('chart-resultados', {
+      chart: { type: 'pie', height: 210 },
+      plotOptions: { pie: { innerSize: '55%', dataLabels: { enabled: false }, showInLegend: true, borderWidth: 2, borderColor: '#fff' } },
+      legend: { layout: 'horizontal', align: 'center', verticalAlign: 'bottom', itemStyle: { color: '#8fa3b8', fontSize: '10px' }, itemMarginBottom: 2 },
+      tooltip: { pointFormat: '<b>{point.name}</b>: {point.y} ({point.percentage:.1f}%)' },
+      series: [{ name: 'Total', data: resultadosData.map(r => ({ name: r.resultado_mantenimiento, y: r.total, color: colR[r.resultado_mantenimiento] || '#8fa3b8' })) }]
     });
   }
 
-  // Barras carga biomédica
-  const ctx3 = document.getElementById('chart-carga');
-  if (ctx3 && cargaData.length > 0) {
-    new Chart(ctx3, {
-      type: 'bar',
-      data: {
-        labels: cargaData.map(r => r.nombre_persona),
-        datasets: [{ label: 'Mantenimientos', data: cargaData.map(r => r.total_mantenimientos),
-          backgroundColor: cargaData.map(r => r.id_persona === {{ session.id_persona }} ? 'rgba(14,116,144,.85)' : 'rgba(180,83,9,.72)'),
-          borderRadius: 4, borderSkipped: false }]
+  // Serie de tiempo — mantenimientos por mes · fuente: MongoDB (mg_rpt_mants_por_mes)
+  if (serieTiempoData.length > 0) {
+    Highcharts.chart('chart-serie-tiempo', {
+      chart: { type: 'areaspline', height: 200 },
+      xAxis: {
+        categories: serieTiempoData.map(r => r.mes),
+        labels: { style: { color: '#8fa3b8', fontSize: '10px' }, rotation: -30 },
+        lineColor: 'rgba(221,229,238,.4)', tickColor: 'transparent'
       },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } } }
-      }
+      yAxis: {
+        title: { text: 'Mantenimientos', style: { color: '#8fa3b8', fontSize: '10px' } },
+        gridLineColor: 'rgba(221,229,238,.2)',
+        labels: { style: { color: '#8fa3b8', fontSize: '10px' } },
+        allowDecimals: false, min: 0
+      },
+      plotOptions: {
+        areaspline: {
+          color: '#0e7490',
+          fillColor: { linearGradient: { x1:0, y1:0, x2:0, y2:1 },
+            stops: [[0,'rgba(14,116,144,.25)'], [1,'rgba(14,116,144,.02)']] },
+          lineWidth: 2, marker: { radius: 4, fillColor: '#fff', lineWidth: 2, lineColor: '#0e7490' }
+        }
+      },
+      legend: { enabled: false },
+      tooltip: { headerFormat: '', pointFormat: '<b>{point.category}</b>: {point.y} mantenimientos' },
+      series: [{ name: 'Mantenimientos', data: serieTiempoData.map(r => r.total) }]
     });
   }
+
 });
 </script>
-{% endblock %}
+
+</body>
+</html>

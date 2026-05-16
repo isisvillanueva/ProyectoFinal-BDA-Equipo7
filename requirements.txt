@@ -1,2 +1,11 @@
-flask>=3.0
-psycopg2-binary>=2.9
+# HospitalIoT — Dependencias Python
+# Instalar con: pip install -r requirements.txt
+
+# Framework web
+Flask==3.1.3
+
+# Adaptador PostgreSQL (incluye binarios precompilados, no requiere libpq del SO)
+psycopg2-binary==2.9.10
+
+# Driver MongoDB
+pymongo==4.17.0

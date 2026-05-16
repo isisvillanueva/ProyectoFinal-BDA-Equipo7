@@ -1,8 +1,15 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HospitalIoT — Responsable de Área</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
 {% from 'macros.html' import flash_msgs, estado_badge, bar_h %}
-{% block title %}HospitalIoT — Responsable de Área{% endblock %}
 
-{% block body %}
 <div class="app">
   <aside class="sidebar">
     <div class="sb-top">
@@ -88,7 +95,7 @@
                 <tr>
                   <td><strong>{{ r.area }}</strong></td>
                   <td>{{ r.responsable }}</td>
-                  <td><span class="mono">{{ r.fecha_inicio.strftime('%d/%m/%Y') if r.fecha_inicio else '—' }}</span></td>
+                  <td><span class="mono">{{ r.fecha_inicio if r.fecha_inicio else '—' }}</span></td>
                 </tr>
                 {% else %}<tr><td colspan="3" class="empty">Sin responsables activos</td></tr>{% endfor %}
               </tbody>
@@ -106,7 +113,7 @@
                 <td><span class="badge b-teal">{{ m.tipo_movimiento }}</span></td>
                 <td>{{ m.origen }}</td><td>{{ m.destino }}</td>
                 <td>{{ m.responsable }}</td>
-                <td><span class="mono">{{ m.fecha_movimiento.strftime('%d/%m %H:%M') if m.fecha_movimiento else '—' }}</span></td>
+                <td><span class="mono">{{ m.fecha_hora_movimiento.strftime('%d/%m %H:%M') if m.fecha_hora_movimiento else '—' }}</span></td>
               </tr>
               {% else %}<tr><td colspan="6" class="empty">Sin movimientos en el área</td></tr>{% endfor %}
             </tbody>
@@ -117,61 +124,116 @@
       <!-- ══ REPORTES ══ -->
       <section id="v-reportes" class="view">
         <div class="phdr">
-          <div><div class="ptitle">Reportes del <em>{{ mi_area.area if mi_area else 'Área' }}</em></div><div class="psub">Métricas operativas del área — datos reales de BD</div></div>
-          <div style="display:flex;gap:8px"><span class="pill">📊 Chart.js 4</span><span class="pill">🔄 Datos en vivo</span></div>
+          <div><div class="ptitle">Reportes del <em>{{ mi_area.area if mi_area else 'Área' }}</em></div><div class="psub">Métricas operativas del área</div></div>
         </div>
 
         <div class="rpt-kpi-grid">
-          <div class="rpt-kpi" style="--kc:var(--purple)">
-            <div class="rpt-kpi-icon">🔬</div>
-            <div class="rpt-kpi-val">{{ equipos_area|length }}</div>
-            <div class="rpt-kpi-label">Equipos en el área</div>
-            <div class="rpt-kpi-sub">Total registrados</div>
-            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--purple);width:100%"></div></div>
-          </div>
-          <div class="rpt-kpi" style="--kc:var(--green)">
+          {% set n_disponibles = equipos_area|selectattr('estado_equipo','equalto','Disponible')|list|length %}
+          {% set n_en_uso      = equipos_area|selectattr('estado_equipo','equalto','En uso')|list|length %}
+          {% set n_mant        = equipos_area|selectattr('estado_equipo','equalto','En mantenimiento')|list|length %}
+          {% set n_fuera       = equipos_area|selectattr('estado_equipo','equalto','Fuera de servicio')|list|length %}
+          {% set total         = equipos_area|length or 1 %}
+          {% set disp_pct      = ((n_disponibles / total) * 100)|int %}
+          {% set util_base     = (n_disponibles + n_en_uso) or 1 %}
+          {% set util_pct      = ((n_en_uso / util_base) * 100)|int %}
+          {% if disp_pct >= 80 %}{% set kc_disp = '#16a34a' %}{% elif disp_pct >= 60 %}{% set kc_disp = '#d97706' %}{% else %}{% set kc_disp = '#dc2626' %}{% endif %}
+          {% if n_fuera == 0 %}{% set kc_fuera = '#16a34a' %}{% else %}{% set kc_fuera = '#dc2626' %}{% endif %}
+          {% if n_mant == 0 %}{% set kc_mant = '#16a34a' %}{% elif n_mant <= 2 %}{% set kc_mant = '#d97706' %}{% else %}{% set kc_mant = '#dc2626' %}{% endif %}
+          {% if util_pct >= 70 %}{% set kc_util = '#16a34a' %}{% elif util_pct >= 40 %}{% set kc_util = '#d97706' %}{% else %}{% set kc_util = '#dc2626' %}{% endif %}
+          <div class="rpt-kpi" style="--kc:{{ kc_disp }}">
             <div class="rpt-kpi-icon">✅</div>
-            <div class="rpt-kpi-val">{{ equipos_area|selectattr('estado_equipo','equalto','Disponible')|list|length }}</div>
-            <div class="rpt-kpi-label">Disponibles en área</div>
-            <div class="rpt-kpi-sub">Listos para asignar</div>
-            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--green);width:{{ ((equipos_area|selectattr('estado_equipo','equalto','Disponible')|list|length/(equipos_area|length or 1))*100)|int }}%"></div></div>
+            <div class="rpt-kpi-val">{{ disp_pct }}%</div>
+            <div class="rpt-kpi-label">Tasa de disponibilidad</div>
+            <div class="rpt-kpi-sub">{{ n_disponibles }} de {{ equipos_area|length }} equipos disponibles</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:{{ kc_disp }};width:{{ disp_pct }}%"></div></div>
           </div>
-          <div class="rpt-kpi" style="--kc:var(--blue)">
+          <div class="rpt-kpi" style="--kc:{{ kc_util }}">
+            <div class="rpt-kpi-icon">⚡</div>
+            <div class="rpt-kpi-val">{{ util_pct }}%</div>
+            <div class="rpt-kpi-label">Utilización efectiva</div>
+            <div class="rpt-kpi-sub">{{ n_en_uso }} en uso de {{ util_base }} disponibles u operativos</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:{{ kc_util }};width:{{ util_pct }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:{{ kc_fuera }}">
+            <div class="rpt-kpi-icon">🚨</div>
+            <div class="rpt-kpi-val">{{ n_fuera }}</div>
+            <div class="rpt-kpi-label">Fuera de servicio</div>
+            <div class="rpt-kpi-sub">{% if n_fuera > 0 %}Requieren atención del biomédico{% else %}Ninguno fuera de servicio{% endif %}</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:{{ kc_fuera }};width:{{ [((n_fuera/total)*100)|int, 100]|min }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:{{ kc_mant }}">
+            <div class="rpt-kpi-icon">🔧</div>
+            <div class="rpt-kpi-val">{{ n_mant }}</div>
+            <div class="rpt-kpi-label">En mantenimiento</div>
+            <div class="rpt-kpi-sub">No disponibles temporalmente</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:{{ kc_mant }};width:{{ ((n_mant/total)*100)|int }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:#2563eb">
             <div class="rpt-kpi-icon">📌</div>
             <div class="rpt-kpi-val">{{ asignaciones|length }}</div>
             <div class="rpt-kpi-label">Asignaciones activas</div>
             <div class="rpt-kpi-sub">Sin cerrar en el área</div>
-            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--blue);width:{{ [asignaciones|length * 20, 100]|min }}%"></div></div>
-          </div>
-          <div class="rpt-kpi" style="--kc:var(--teal)">
-            <div class="rpt-kpi-icon">🔄</div>
-            <div class="rpt-kpi-val">{{ movimientos|length }}</div>
-            <div class="rpt-kpi-label">Movimientos del área</div>
-            <div class="rpt-kpi-sub">Registrados en el sistema</div>
-            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--teal);width:{{ [movimientos|length * 5, 100]|min }}%"></div></div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:#2563eb;width:{{ [asignaciones|length * 20, 100]|min }}%"></div></div>
           </div>
         </div>
 
-        <div class="rpt-section-label"><span class="rpt-section-tag">// gráficas</span>Datos reales de BD</div>
+        <div class="rpt-section-label"><span class="rpt-section-tag">Análisis</span>Distribución y actividad del área</div>
 
         <div class="rpt-charts-grid">
           <div class="card">
             <div class="card-hdr">
               <span class="card-ttl">🥧 Estado de equipos del área</span>
-              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:var(--green)"></span>Disp. &nbsp;<span class="rpt-leg-dot" style="background:var(--teal)"></span>Uso &nbsp;<span class="rpt-leg-dot" style="background:var(--amber)"></span>Mant.</span>
             </div>
-            <div class="card-body rpt-chart-body"><canvas id="chart-estados-resp"></canvas></div>
+            <div class="card-body rpt-chart-body" style="height:280px"><div id="chart-estados-resp" style="height:270px"></div></div>
           </div>
           <div class="card">
             <div class="card-hdr">
-              <span class="card-ttl">📊 Tipos de movimientos en el área</span>
-              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:rgba(14,116,144,.85)"></span>Frecuencia</span>
+              <span class="card-ttl">📅 Actividad semanal del área</span>
             </div>
-            <div class="card-body rpt-chart-body"><canvas id="chart-movs-tipo"></canvas></div>
+            <div class="card-body rpt-chart-body" style="height:280px"><div id="chart-movs-tipo" style="height:270px"></div></div>
           </div>
         </div>
 
-        <div class="rpt-section-label"><span class="rpt-section-tag">// actividad</span>Por equipo del área</div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">👤 Carga de equipos por persona</span></div>
+          <div class="card-body rpt-chart-body" style="height:280px"><div id="chart-carga-persona" style="height:270px"></div></div>
+        </div>
+
+        <div class="rpt-section-label"><span class="rpt-section-tag">Mantenimiento</span>Próximos en el área</div>
+
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">🗓 Mantenimientos próximos o vencidos</span></div>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Equipo</th><th>Criticidad</th><th>Tipo</th><th>Fecha programada</th><th>Estado</th><th>Días</th></tr></thead>
+            <tbody>
+              {% for m in mants_proximos %}
+              {% set dias = m.tiempo_restante.days if m.tiempo_restante else 0 %}
+              <tr>
+                <td><strong>{{ m.nombre_equipo }}</strong><br><span class="cod">{{ m.codigo_interno }}</span></td>
+                <td>
+                  {% if m.criticidad_equipo == 'Alta' %}<span class="badge b-red">Alta</span>
+                  {% elif m.criticidad_equipo == 'Media' %}<span class="badge b-amber">Media</span>
+                  {% else %}<span class="badge b-gray">Baja</span>{% endif %}
+                </td>
+                <td>{{ m.tipo_mantenimiento }}</td>
+                <td><span class="mono">{{ m.fecha_proximo_mantenimiento.strftime('%d/%m/%Y') if m.fecha_proximo_mantenimiento else '—' }}</span></td>
+                <td>
+                  {% if m.estado_cumplimiento == 'Vencido' %}<span class="badge b-red">Vencido</span>
+                  {% elif m.estado_cumplimiento == 'Pendiente' %}<span class="badge b-amber">Pendiente</span>
+                  {% else %}<span class="badge b-green">{{ m.estado_cumplimiento }}</span>{% endif %}
+                </td>
+                <td>
+                  {% if dias < 0 %}<span style="color:#dc2626;font-weight:600">{{ dias|abs }} días vencido</span>
+                  {% elif dias == 0 %}<span style="color:#d97706;font-weight:600">Hoy</span>
+                  {% else %}<span style="color:#16a34a">en {{ dias }} días</span>{% endif %}
+                </td>
+              </tr>
+              {% else %}<tr><td colspan="6" class="empty">Sin mantenimientos programados para el área</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+
+        <div class="rpt-section-label"><span class="rpt-section-tag">Detalle</span>Actividad de cada equipo</div>
 
         <div class="card">
           <div class="card-hdr"><span class="card-ttl">📋 Actividad de cada equipo del área</span></div>
@@ -193,20 +255,6 @@
               {% else %}<tr><td colspan="4" class="empty">Sin datos de actividad</td></tr>{% endfor %}
             </tbody>
           </table></div>
-        </div>
-
-        <div class="rpt-section-label"><span class="rpt-section-tag">// métricas IoT</span>Indicadores del área</div>
-        <div class="card">
-          <div class="card-body">
-            <ul class="rpt-metric-list">
-              <li><span class="rpt-ml-dot" style="background:var(--purple)"></span>Estado operativo de equipos del área en tiempo real</li>
-              <li><span class="rpt-ml-dot" style="background:var(--teal)"></span>Trazabilidad de movimientos NFC · GPS · Beacon</li>
-              <li><span class="rpt-ml-dot" style="background:var(--green)"></span>Disponibilidad de equipos por turno y área</li>
-              <li><span class="rpt-ml-dot" style="background:var(--blue)"></span>Asignaciones activas y su historial</li>
-              <li><span class="rpt-ml-dot" style="background:var(--amber)"></span>Uso clínico registrado por el personal del área</li>
-              <li><span class="rpt-ml-dot" style="background:var(--red)"></span>Equipos con estados críticos o fuera de servicio</li>
-            </ul>
-          </div>
         </div>
       </section>
 
@@ -269,7 +317,7 @@
               <tr>
                 <td><strong>{{ a.nombre_equipo }}</strong><br><span class="cod">{{ a.codigo_interno }}</span></td>
                 <td>{{ a.asignado_a }}</td><td>{{ a.nombre_ubicacion }}</td>
-                <td><span class="mono">{{ a.fecha_asignacion.strftime('%d/%m/%Y') if a.fecha_asignacion else '—' }}</span></td>
+                <td><span class="mono">{{ a.fecha_inicio_asignacion.strftime('%d/%m/%Y') if a.fecha_inicio_asignacion else '—' }}</span></td>
                 <td><span style="font-size:11px;color:var(--tx3)">{{ a.observacion_asignacion or '—' }}</span></td>
                 <td>
                   <form method="POST" action="{{ url_for('responsable_liberar_asignacion', id_asignacion=a.id_asignacion) }}">
@@ -297,7 +345,7 @@
                 <td>{{ m.origen }}</td><td>{{ m.destino }}</td>
                 <td>{{ m.responsable }}</td>
                 <td><span style="font-size:11px;color:var(--tx3)">{{ m.observacion_movimiento or '—' }}</span></td>
-                <td><span class="mono">{{ m.fecha_movimiento.strftime('%d/%m %H:%M') if m.fecha_movimiento else '—' }}</span></td>
+                <td><span class="mono">{{ m.fecha_hora_movimiento.strftime('%d/%m %H:%M') if m.fecha_hora_movimiento else '—' }}</span></td>
               </tr>
               {% else %}<tr><td colspan="7" class="empty">Sin movimientos en el área</td></tr>{% endfor %}
             </tbody>
@@ -308,55 +356,106 @@
     </div>
   </div>
 </div>
-{% endblock %}
+<div id="toast"></div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
 
-{% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://code.highcharts.com/highcharts.js"></script>
 <script>
-const estadosRespData = {{ rpt_estados_area | tojson }};
-const movsTipoData    = {{ rpt_tipos_movs | tojson }};
+const estadosRespData  = {{ rpt_estados_area | tojson }};
+const movsTipoData     = {{ rpt_tipos_movs | tojson }};
+const movsDiaData      = {{ rpt_movs_dia   | tojson }};
+const asignacionesData = {{ asignaciones   | tojson }};
 
-Chart.defaults.font.family = "'Outfit', sans-serif";
-Chart.defaults.color = '#8fa3b8';
-Chart.defaults.borderColor = 'rgba(221,229,238,.4)';
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: "'Outfit', sans-serif" } },
+  title: { text: '' },
+  credits: { enabled: false },
+  legend: { itemStyle: { color: '#8fa3b8', fontWeight: 'normal', fontSize: '11px' } }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
-  const colE = {'Disponible':'#047857','En uso':'#0e7490','En mantenimiento':'#b45309','Fuera de servicio':'#b91c1c'};
-  const palette = ['rgba(14,116,144,.8)','rgba(29,78,216,.75)','rgba(109,40,217,.75)','rgba(4,120,87,.75)','rgba(180,83,9,.75)','rgba(185,28,28,.75)','rgba(12,74,110,.8)','rgba(4,120,87,.6)','rgba(29,78,216,.5)','rgba(109,40,217,.5)'];
+  const colE ={'Disponible':'#16a34a','En uso':'#2563eb','En mantenimiento':'#d97706','Fuera de servicio':'#dc2626','Retirado':'#6b7280','En préstamo':'#7c3aed'};
+  const palette = ['#2563eb','#0e7490','#7c3aed','#16a34a','#d97706','#dc2626','#0c4a6e','#065f46','#1e3a8a','#4c1d95'];
 
-  // Doughnut estados del área
-  const ctx1 = document.getElementById('chart-estados-resp');
-  if (ctx1 && estadosRespData.length > 0) {
-    new Chart(ctx1, {
-      type: 'doughnut',
-      data: {
-        labels: estadosRespData.map(r => r.estado_equipo),
-        datasets: [{ data: estadosRespData.map(r => r.total), backgroundColor: estadosRespData.map(r => colE[r.estado_equipo]||'#8fa3b8'), borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
-      },
-      options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'right', labels: { font: { size: 10 }, padding: 10, boxWidth: 10 } } } }
-    });
-  } else if (ctx1) {
-    ctx1.parentElement.innerHTML = '<p style="text-align:center;color:#8fa3b8;padding:40px;font-size:12px">Sin equipos en esta área</p>';
+  const contEstados = document.getElementById('chart-estados-resp');
+  if (contEstados) {
+    if (estadosRespData.length > 0) {
+      Highcharts.chart('chart-estados-resp', {
+        chart: { type: 'pie', height: 270 },
+        plotOptions: { pie: { innerSize: '55%', dataLabels: { enabled: false }, showInLegend: true, borderWidth: 2, borderColor: '#fff' } },
+        legend: { layout: 'horizontal', align: 'center', verticalAlign: 'bottom', itemStyle: { color: '#8fa3b8', fontSize: '10px' }, itemMarginBottom: 4 },
+        tooltip: { pointFormat: '<b>{point.name}</b>: {point.y} equipos ({point.percentage:.1f}%)' },
+        series: [{ name: 'Equipos', data: estadosRespData.map(r => ({ name: r.estado_equipo, y: r.total, color: colE[r.estado_equipo] || '#8fa3b8' })) }]
+      });
+    } else {
+      contEstados.innerHTML = '<p style="text-align:center;color:#8fa3b8;padding:40px;font-size:12px">Sin equipos registrados en esta área</p>';
+    }
   }
 
-  // Barras tipos de movimiento
-  const ctx2 = document.getElementById('chart-movs-tipo');
-  if (ctx2 && movsTipoData.length > 0) {
-    new Chart(ctx2, {
-      type: 'bar',
-      data: {
-        labels: movsTipoData.map(r => r.tipo_movimiento.substring(0,14)),
-        datasets: [{ label: 'Movimientos', data: movsTipoData.map(r => r.total), backgroundColor: movsTipoData.map((_,i) => palette[i % palette.length]), borderRadius: 4, borderSkipped: false }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } }, y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } } }
-      }
-    });
-  } else if (ctx2) {
-    ctx2.parentElement.innerHTML = '<p style="text-align:center;color:#8fa3b8;padding:40px;font-size:12px">Sin movimientos registrados en el área</p>';
+  const contCarga = document.getElementById('chart-carga-persona');
+  if (contCarga) {
+    const cargaPersona = Object.entries(
+      asignacionesData.reduce((acc, a) => { acc[a.asignado_a] = (acc[a.asignado_a] || 0) + 1; return acc; }, {})
+    ).map(([nombre, total]) => ({ nombre, total })).sort((a, b) => b.total - a.total);
+    if (cargaPersona.length > 0) {
+      Highcharts.chart('chart-carga-persona', {
+        chart: { type: 'bar', height: 270 },
+        xAxis: {
+          categories: cargaPersona.map(r => r.nombre),
+          labels: { style: { color: '#8fa3b8', fontSize: '11px' } },
+          lineColor: 'rgba(221,229,238,.4)', tickColor: 'transparent',
+          title: { text: 'Personal del área', style: { color: '#8fa3b8', fontSize: '10px' } }
+        },
+        yAxis: {
+          title: { text: 'Equipos asignados', style: { color: '#8fa3b8', fontSize: '10px' } },
+          gridLineColor: 'rgba(221,229,238,.2)',
+          labels: { style: { color: '#8fa3b8', fontSize: '10px' } },
+          allowDecimals: false
+        },
+        plotOptions: { bar: { borderRadius: 4, color: '#2563eb', dataLabels: { enabled: true, style: { color: '#8fa3b8', fontSize: '10px', fontWeight: 'normal', textOutline: 'none' } } } },
+        legend: { enabled: false },
+        tooltip: { headerFormat: '', pointFormat: '<b>{point.category}</b>: {point.y} equipo(s) asignado(s)' },
+        series: [{ name: 'Asignaciones', data: cargaPersona.map(r => r.total) }]
+      });
+    } else {
+      contCarga.innerHTML = '<p style="text-align:center;color:#8fa3b8;padding:40px;font-size:12px">Sin asignaciones activas en el área</p>';
+    }
+  }
+
+  const contMovs = document.getElementById('chart-movs-tipo');
+  if (contMovs) {
+    const totalDia = movsDiaData.reduce((s, r) => s + r.total, 0);
+    if (totalDia > 0) {
+      Highcharts.chart('chart-movs-tipo', {
+        chart: { type: 'column', height: 270 },
+        xAxis: {
+          categories: movsDiaData.map(r => r.dia),
+          labels: { style: { color: '#8fa3b8', fontSize: '11px' } },
+          lineColor: 'rgba(221,229,238,.4)', tickColor: 'transparent',
+          title: { text: 'Día de la semana', style: { color: '#8fa3b8', fontSize: '10px' } }
+        },
+        yAxis: {
+          title: { text: 'Movimientos', style: { color: '#8fa3b8', fontSize: '10px' } },
+          gridLineColor: 'rgba(221,229,238,.2)',
+          labels: { style: { color: '#8fa3b8', fontSize: '10px' } },
+          allowDecimals: false
+        },
+        plotOptions: { column: { borderRadius: 4, color: '#7c3aed' } },
+        legend: { enabled: false },
+        tooltip: {
+          formatter: function() {
+            const pct = totalDia > 0 ? (this.y / totalDia * 100).toFixed(1) : '0.0';
+            return `<b>${this.x}</b>: ${this.y} movimiento(s)<br><span style="color:#8fa3b8">${pct}% del total del área</span>`;
+          }
+        },
+        series: [{ name: 'Movimientos', data: movsDiaData.map(r => r.total) }]
+      });
+    } else {
+      contMovs.innerHTML = '<p style="text-align:center;color:#8fa3b8;padding:40px;font-size:12px">No hay movimientos registrados para esta área</p>';
+    }
   }
 });
 </script>
-{% endblock %}
+
+</body>
+</html>

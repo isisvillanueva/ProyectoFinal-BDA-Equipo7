@@ -1,5 +1,6 @@
-{# macros.html #}
+﻿{# macros.html — HospitalIoT · Macros estandarizados #}
 
+{# Flash messages #}
 {% macro flash_msgs() %}
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
@@ -7,15 +8,11 @@
     {% for cat, msg in messages %}
       <div class="flash-msg {{ cat }}">
         <span>
-          {% if cat == 'success' %}
-            ✅
-          {% elif cat == 'error' %}
-            ❌
-          {% elif cat == 'warning' %}
-            ⚠️
-          {% else %}
-            ℹ️
-          {% endif %}
+          {% if cat == 'success' %}✅
+          {% elif cat == 'error' %}❌
+          {% elif cat == 'warning' %}⚠️
+          {% elif cat == 'info' %}ℹ️
+          {% else %}ℹ️{% endif %}
         </span>
         {{ msg }}
       </div>
@@ -26,64 +23,140 @@
 {% endmacro %}
 
 
+{# Estado del equipo (badge con color semántico) #}
 {% macro estado_badge(e) %}
 {% set m = {
-  'Disponible':'b-green',
-  'En uso':'b-teal',
-  'En mantenimiento':'b-amber',
+  'Disponible':       'b-green',
+  'En uso':           'b-teal',
+  'En mantenimiento': 'b-amber',
   'Fuera de servicio':'b-red',
-  'Reservado':'b-blue',
-  'En traslado':'b-blue',
-  'Dañado':'b-red',
-  'Calibración':'b-amber',
-  'Limpieza':'b-amber',
-  'Inactivo':'b-gray'
+  'Retirado':         'b-gray',
+  'En préstamo':      'b-purple',
+  'Reservado':        'b-blue',
+  'Dañado':           'b-red',
+  'Calibración':      'b-amber',
+  'Limpieza':         'b-amber',
+  'Inactivo':         'b-gray'
+} %}
+{% set icon = {
+  'Disponible':       '✅',
+  'En uso':           '▶️',
+  'En mantenimiento': '🔧',
+  'Fuera de servicio':'🚫',
+  'Retirado':         '🗑️',
+  'En préstamo':      '🚑',
+  'Reservado':        '📌',
+  'Dañado':           '❌',
+  'Calibración':      '⚙️',
+  'Limpieza':         '🧼',
+  'Inactivo':         '⏸️'
 } %}
 <span class="badge {{ m.get(e,'b-gray') }}">
-  <span class="bdot"></span>{{ e or '—' }}
+  <span class="bdot"></span>
+  {{ icon.get(e,'ℹ️') }} {{ e or '—' }}
 </span>
 {% endmacro %}
 
 
+{# Resultado de mantenimiento #}
 {% macro resultado_badge(r) %}
 {% set m = {
-  'Exitoso':'b-green',
-  'Sin falla':'b-green',
-  'Fallido':'b-red',
-  'Parcial':'b-amber',
-  'Requiere refacción':'b-amber',
-  'Reemplazo necesario':'b-red',
-  'Pendiente':'b-gray',
-  'Reprogramado':'b-blue',
-  'Cancelado':'b-gray',
-  'En proceso':'b-blue'
+  'Exitoso':                          'b-green',
+  'Sin falla':                        'b-green',
+  'Fallido':                          'b-red',
+  'Parcial':                          'b-amber',
+  'Requiere refacción':               'b-amber',
+  'Reemplazo necesario':              'b-red',
+  'Pendiente':                        'b-gray',
+  'Reprogramado':                     'b-blue',
+  'Cancelado':                        'b-gray',
+  'En proceso':                       'b-blue',
+  'Alerta: Discrepancia de Ubicación':'b-red',
+  'Coherente':                        'b-green'
+} %}
+{% set icon = {
+  'Exitoso':                          '✅',
+  'Sin falla':                        '✅',
+  'Fallido':                          '❌',
+  'Parcial':                          '⚠️',
+  'Requiere refacción':               '🔧',
+  'Reemplazo necesario':              '🚨',
+  'Pendiente':                        '⏳',
+  'Reprogramado':                     '🔄',
+  'Cancelado':                        '🚫',
+  'En proceso':                       '▶️',
+  'Alerta: Discrepancia de Ubicación':'🚨',
+  'Coherente':                        '✔️'
 } %}
 <span class="badge {{ m.get(r,'b-gray') }}">
-  {{ r or '—' }}
+  {{ icon.get(r,'ℹ️') }} {{ r or '—' }}
 </span>
 {% endmacro %}
 
 
+{# Rol de usuario #}
 {% macro rol_badge(r) %}
 {% set m = {
-  'Admin':'b-purple',
-  'Medico':'b-teal',
-  'Médico':'b-teal',
-  'Enfermero':'b-green',
-  'Biomedico':'b-amber',
-  'Biomédico':'b-amber',
-  'Responsable Area':'b-blue',
-  'Responsable':'b-blue'
+  'Administrador':'b-blue',
+  'Médico':       'b-teal',
+  'Enfermero':    'b-green',
+  'Biomédico':    'b-amber',
+  'Conductor':    'b-gray',
+  'Responsable':  'b-violet'
 } %}
-<span class="badge {{ m.get(r,'b-gray') }}">
-  {{ r or '—' }}
-</span>
+<span class="badge {{ m.get(r,'b-gray') }}">{{ r or '—' }}</span>
 {% endmacro %}
 
 
-{% macro bar_h(val, mx, color='var(--teal)') %}
-{% set p = ((val/(mx or 1))*100)|int %}
-<div class="pr">
-  <div class="prf" style="width:{{ [p,3]|max }}%; background:{{ color }}"></div>
+{# Barra horizontal proporcional #}
+{% macro bar_h(val, max_val, color='var(--teal)') %}
+{% set pct = ((val / max_val) * 100)|int if max_val else 0 %}
+<div style="height:6px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden">
+  <div style="height:100%;width:{{ pct }}%;background:{{ color }};border-radius:4px;transition:width .4s"></div>
 </div>
 {% endmacro %}
+
+
+{# Indicador de ubicación IoT (triangulación visual) #}
+{#
+   eq.iot_estado: 'ok' | 'alerta' | 'sin_datos'
+   eq.iot_ubicacion_beacon: string
+   Uso: {{ iot_badge(eq) }}
+#}
+{% macro iot_badge(eq) %}
+{% if eq.iot_estado == 'alerta' %}
+  <span class="badge b-red" title="Discrepancia: BD={{ eq.get('nombre_ubicacion','') }} · Beacon={{ eq.iot_ubicacion_beacon }}">
+    🚨 Discrepancia
+  </span>
+{% elif eq.iot_estado == 'ok' %}
+  <span class="badge b-green" title="Ubicación IoT coincide con BD">
+    ✔️ Validada
+  </span>
+{% else %}
+  <span class="badge b-gray" title="Sin señal IoT reciente">
+    📵 Sin señal
+  </span>
+{% endif %}
+{% endmacro %}
+
+
+{# Alerta de mantenimiento preventivo #}
+{#
+   mp.alerta: 'vencido' | 'urgente' | 'proximo' | 'al_dia'
+   Uso: {{ alerta_mant_badge(mp.alerta) }}
+#}
+{% macro alerta_mant_badge(a) %}
+{% if a == 'vencido' %}
+  <span class="badge b-red">🔴 Vencido</span>
+{% elif a == 'urgente' %}
+  <span class="badge b-amber">🟠 Urgente (&lt;7d)</span>
+{% elif a == 'proximo' %}
+  <span class="badge b-blue">🔵 Próximo (&lt;30d)</span>
+{% else %}
+  <span class="badge b-green">✅ Al día</span>
+{% endif %}
+{% endmacro %}
+
+
+{# Modal de confirmación genérico (se instancia con JS) #}
+{# Los botones peligrosos deben usar data-confirm-form y data-confirm-msg #}

@@ -1,7 +1,14 @@
-{% extends "base.html" %}
-{% block title %}HospitalIoT — Inicio de sesión{% endblock %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HospitalIoT — Inicio de sesión</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
 
-{% block body %}
 <div id="pg-login">
   <div class="login-card">
 
@@ -40,7 +47,6 @@
       <h2 class="login-title">Bienvenido</h2>
       <p class="login-sub">Accede con tus credenciales institucionales</p>
 
-      <!-- NUEVO: enlace al módulo público -->
       <a href="{{ url_for('public_home') }}" class="login-back-link">
         ← Volver al módulo público
       </a>
@@ -76,6 +82,7 @@
 
       <div id="login-msg" class="login-msg"></div>
 
+      <!-- Flash messages de Flask -->
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for cat, msg in messages %}
           <div class="login-msg show {{ cat }}" style="margin-top:10px">
@@ -87,4 +94,24 @@
 
   </div>
 </div>
-{% endblock %}
+
+<div id="toast"></div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script>
+fetch("/api/public/equipos")
+  .then(res => res.json())
+  .then(data => {
+    const contenedor = document.getElementById("tabla");
+
+    data.data.forEach(eq => {
+      contenedor.innerHTML += `
+        <tr>
+          <td>${eq.nombre_equipo}</td>
+          <td>${eq.marca}</td>
+        </tr>
+      `;
+    });
+  });
+</script>
+</body>
+</html>

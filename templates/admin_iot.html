@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HospitalIoT — Panel IoT & Auditoría</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;1,8..60,300&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+{% from 'macros.html' import flash_msgs, resultado_badge, estado_badge %}
+
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sb-top">
+      <div class="sb-brand">
+        <span class="sb-dot"></span>
+        <span class="sb-name">HospitalIoT</span>
+      </div>
+      <div class="sb-badge">🛡 Administrador</div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sbn-sec">Principal</div>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-dash">
+        <span class="sbn-ic">📊</span>Dashboard
+      </a>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-reportes">
+        <span class="sbn-ic">📈</span>Reportes
+      </a>
+      <a class="sbn-item" href="{{ url_for('admin_iot') }}">
+        <span class="sbn-ic">📡</span>Gestión IoT
+      </a>
+      <div class="sbn-sec">Accesos rápidos</div>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-equipos">
+        <span class="sbn-ic">🔬</span>Equipos
+      </a>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-asig">
+        <span class="sbn-ic">📌</span>Asignaciones
+      </a>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-movs">
+        <span class="sbn-ic">🔄</span>Movimientos
+      </a>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-mants">
+        <span class="sbn-ic">🔧</span>Mantenimientos
+      </a>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-traslados">
+        <span class="sbn-ic">🚑</span>Traslados
+      </a>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-usuarios">
+        <span class="sbn-ic">👥</span>Usuarios
+      </a>
+    </nav>
+    <div class="sb-foot">
+      <div class="sb-uname">{{ session.nombre }}</div>
+      <div class="sb-urole">Administrador · Sistema</div>
+      <a href="{{ url_for('logout') }}" class="sb-logout">← Cerrar sesión</a>
+    </div>
+  </aside>
+
+  <!-- MAIN — id requerido para que app.js active el polling IoT -->
+  <main class="main" id="iot-panel-root">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title">📡 Panel IoT &amp; Auditoría</div>
+        <div class="topbar-sub">Monitoreo en tiempo real · Discrepancias · Trazabilidad</div>
+      </div>
+      <div class="topbar-right">
+        <span id="last-refresh" class="ts-dim">Actualizado ahora</span>
+        <button class="btn btn-secondary btn-sm refresh-btn" onclick="refreshIoT()">↻ Actualizar</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      {{ flash_msgs() }}
+
+      <!-- KPIs -->
+      <div class="iot-grid">
+        <div class="iot-kpi">
+          <div class="kpi-val {% if total_disc > 0 %}kpi-red{% else %}kpi-green{% endif %}">
+            {{ total_disc }}
+          </div>
+          <div class="kpi-lbl">Discrepancias de ubicación</div>
+        </div>
+        <div class="iot-kpi">
+          <div class="kpi-val {% if total_sin_evidencia > 0 %}kpi-amber{% else %}kpi-green{% endif %}">
+            {{ total_sin_evidencia }}
+          </div>
+          <div class="kpi-lbl">Equipos sin señal IoT (&gt;12h)</div>
+        </div>
+        <div class="iot-kpi">
+          <div class="kpi-val kpi-blue">{{ eventos_nfc|length }}</div>
+          <div class="kpi-lbl">Eventos NFC recientes</div>
+        </div>
+        <div class="iot-kpi">
+          <div class="kpi-val kpi-blue">{{ eventos_beacon|length }}</div>
+          <div class="kpi-lbl">Eventos Beacon recientes</div>
+        </div>
+        <div class="iot-kpi">
+          <div class="kpi-val kpi-green">{{ beacons|length }}</div>
+          <div class="kpi-lbl">Beacons registrados</div>
+        </div>
+        <div class="iot-kpi">
+          <div class="kpi-val kpi-green">{{ dispositivos_nfc|length }}</div>
+          <div class="kpi-lbl">Dispositivos NFC</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs-iot">
+        <button class="tab-iot active" onclick="switchTab('t-disc', this)">🚨 Discrepancias</button>
+        <button class="tab-iot" onclick="switchTab('t-sinal', this)">📵 Sin señal</button>
+        <button class="tab-iot" onclick="switchTab('t-nfc', this)">📟 Eventos NFC</button>
+        <button class="tab-iot" onclick="switchTab('t-beacon', this)">📻 Eventos Beacon</button>
+        <button class="tab-iot" onclick="switchTab('t-inv', this)">🗂 Inventario IoT</button>
+        <button class="tab-iot" onclick="switchTab('t-audit', this)">🔍 Auditoría</button>
+        <button class="tab-iot" onclick="switchTab('t-users', this)">👤 Actividad usuarios</button>
+      </div>
+
+      <!-- Tab: Discrepancias -->
+      <div id="t-disc" class="tab-pane active">
+        <div class="section-hdr">
+          <span class="dot dot-red"></span>
+          Discrepancias de ubicación (Beacon vs Administrativo)
+        </div>
+        {% if discrepancias %}
+        <div class="card">
+          <div class="tbl-wrap">
+            <table class="iot-tbl">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Equipo</th>
+                  <th>Ub. Administrativa</th>
+                  <th>Área Admin</th>
+                  <th>Ub. Beacon</th>
+                  <th>Área Beacon</th>
+                  <th>Última lectura</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for d in discrepancias %}
+              <tr>
+                <td><span class="cod">{{ d.codigo_interno }}</span></td>
+                <td>{{ d.nombre_equipo }}</td>
+                <td>{{ d.ubicacion_administrativa or '—' }}</td>
+                <td>{{ d.area_administrativa or '—' }}</td>
+                <td>{{ d.ubicacion_evidencia_beacon or '—' }}</td>
+                <td>{{ d.area_evidencia_beacon or '—' }}</td>
+                <td class="ts-dim">{{ d.fecha_ultima_evidencia_beacon or '—' }}</td>
+                <td>{{ resultado_badge(d.resultado) }}</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% else %}
+          <div class="empty-iot">✅ No hay discrepancias de ubicación detectadas.</div>
+        {% endif %}
+      </div>
+
+      <!-- Tab: Sin señal -->
+      <div id="t-sinal" class="tab-pane">
+        <div class="section-hdr">
+          <span class="dot dot-amber"></span>
+          Equipos sin evidencia IoT en las últimas 12 horas
+        </div>
+        {% if sin_evidencia %}
+        <div class="card">
+          <div class="tbl-wrap">
+            <table class="iot-tbl">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Equipo</th>
+                  <th>Criticidad</th>
+                  <th>Última evidencia NFC</th>
+                  <th>Última evidencia Beacon</th>
+                  <th>Última señal IoT</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for eq in sin_evidencia %}
+              <tr>
+                <td><span class="cod">{{ eq.codigo_interno }}</span></td>
+                <td>{{ eq.nombre_equipo }}</td>
+                <td>{{ eq.criticidad_equipo }}</td>
+                <td class="ts-dim">{{ eq.ultima_evidencia_nfc or '—' }}</td>
+                <td class="ts-dim">{{ eq.ultima_evidencia_beacon or '—' }}</td>
+                <td class="ts-dim">
+                  <span class="badge b-amber">{{ eq.ultima_evidencia_iot or 'Sin registro' }}</span>
+                </td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% else %}
+          <div class="empty-iot">✅ Todos los equipos tienen evidencia IoT reciente.</div>
+        {% endif %}
+      </div>
+
+      <!-- Tab: Eventos NFC -->
+      <div id="t-nfc" class="tab-pane">
+        <div class="section-hdr">
+          <span class="dot dot-blue"></span>
+          Últimos 50 eventos NFC
+        </div>
+        {% if eventos_nfc %}
+        <div class="card">
+          <div class="tbl-wrap">
+            <table class="iot-tbl">
+              <thead>
+                <tr>
+                  <th>Fecha/hora</th>
+                  <th>Tipo evento</th>
+                  <th>UID NFC</th>
+                  <th>Equipo</th>
+                  <th>Estado equipo</th>
+                  <th>Ubicación</th>
+                  <th>Área</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for ev in eventos_nfc %}
+              <tr>
+                <td class="ts-dim">{{ ev.fecha_hora_evento }}</td>
+                <td>{{ ev.tipo_evento_nfc }}</td>
+                <td><span class="cod">{{ ev.codigo_uid_nfc }}</span></td>
+                <td>{{ ev.nombre_equipo }}</td>
+                <td>{{ estado_badge(ev.estado_equipo) }}</td>
+                <td>{{ ev.nombre_ubicacion }}</td>
+                <td>{{ ev.nombre_area }}</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% else %}
+          <div class="empty-iot">Sin eventos NFC registrados.</div>
+        {% endif %}
+      </div>
+
+      <!-- Tab: Eventos Beacon -->
+      <div id="t-beacon" class="tab-pane">
+        <div class="section-hdr">
+          <span class="dot dot-blue"></span>
+          Últimos 50 eventos Beacon
+        </div>
+        {% if eventos_beacon %}
+        <div class="card">
+          <div class="tbl-wrap">
+            <table class="iot-tbl">
+              <thead>
+                <tr>
+                  <th>Fecha/hora</th>
+                  <th>Tipo evento</th>
+                  <th>UUID Beacon</th>
+                  <th>Zona</th>
+                  <th>Área</th>
+                  <th>Equipo</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for ev in eventos_beacon %}
+              <tr>
+                <td class="ts-dim">{{ ev.fecha_hora_evento }}</td>
+                <td>{{ ev.tipo_evento_beacon }}</td>
+                <td class="ts-dim">{{ ev.uuid_beacon }}</td>
+                <td>{{ ev.nombre_zona_beacon }}</td>
+                <td>{{ ev.nombre_area }}</td>
+                <td>{{ ev.nombre_equipo }}</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% else %}
+          <div class="empty-iot">Sin eventos Beacon registrados.</div>
+        {% endif %}
+      </div>
+
+      <!-- Tab: Inventario IoT -->
+      <div id="t-inv" class="tab-pane">
+
+        <!-- ── NFC ─────────────────────────────────────────────────────── -->
+        <div class="section-hdr">
+          <span class="dot dot-blue"></span>
+          Dispositivos NFC
+          <span style="margin-left:auto;font-size:11px;color:var(--tx3)">
+            {{ dispositivos_nfc|length }} registrados ·
+            {{ dispositivos_nfc|selectattr('activo_nfc')|list|length }} activos
+          </span>
+        </div>
+
+        <!-- Alerta: un equipo = un tag (unique constraint en BD) -->
+        <div class="al in" style="margin-bottom:14px">
+          <span class="al-ic">ℹ️</span>
+          <div class="al-b">
+            <strong>Un tag por equipo</strong>
+            <span>Cada equipo tiene exactamente un dispositivo NFC. Para asociar un tag físico, actualiza su UID en la fila correspondiente.</span>
+          </div>
+        </div>
+
+        <!-- Tabla NFC con acciones -->
+        {% if dispositivos_nfc %}
+        <div class="card">
+          <div class="tbl-wrap">
+            <table class="iot-tbl">
+              <thead>
+                <tr>
+                  <th>UID NFC</th>
+                  <th>Activo</th>
+                  <th>Equipo</th>
+                  <th>Código</th>
+                  <th>Estado equipo</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for n in dispositivos_nfc %}
+              <tr id="nfc-row-{{ n.id_nfc }}">
+                <td>
+                  <span class="ts-dim" style="font-family:monospace" id="nfc-uid-txt-{{ n.id_nfc }}">
+                    {% if n.codigo_uid_nfc %}{{ n.codigo_uid_nfc }}{% else %}<em style="color:var(--tx3)">Sin UID</em>{% endif %}
+                  </span>
+                  <!-- Formulario inline de edición de UID (oculto por defecto) -->
+                  <form method="POST"
+                        action="{{ url_for('admin_iot_update_uid_nfc', id_nfc=n.id_nfc) }}"
+                        id="nfc-uid-form-{{ n.id_nfc }}"
+                        style="display:none;gap:6px;align-items:center">
+                    <input type="text" name="codigo_uid_nfc" class="fc"
+                           value="{{ n.codigo_uid_nfc or '' }}"
+                           placeholder="Ej. 15:CB:50:3D" required
+                           style="font-family:monospace;font-size:11px;width:160px;padding:4px 8px">
+                    <button type="submit" class="btn btn-primary btn-sm">✔</button>
+                    <button type="button" class="btn btn-secondary btn-sm"
+                            onclick="cancelEditUID({{ n.id_nfc }})">✕</button>
+                  </form>
+                </td>
+                <td>
+                  {% if n.activo_nfc %}
+                    <span class="badge b-green">Activo</span>
+                  {% else %}
+                    <span class="badge b-gray">Inactivo</span>
+                  {% endif %}
+                </td>
+                <td>{{ n.nombre_equipo }}</td>
+                <td><span class="cod">{{ n.codigo_interno }}</span></td>
+                <td>{{ estado_badge(n.estado_equipo) }}</td>
+                <td>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <button class="btn btn-secondary btn-sm"
+                            onclick="editUID({{ n.id_nfc }})">✏️ UID</button>
+                    <form method="POST"
+                          action="{{ url_for('admin_iot_toggle_nfc', id_nfc=n.id_nfc) }}"
+                          style="display:inline">
+                      <button type="submit" class="btn btn-secondary btn-sm">
+                        {% if n.activo_nfc %}🔒{% else %}🔓{% endif %}
+                      </button>
+                    </form>
+                    <form method="POST"
+                          action="{{ url_for('admin_iot_delete_nfc', id_nfc=n.id_nfc) }}"
+                          style="display:inline"
+                          onsubmit="return confirm('¿Desactivar el tag {{ n.codigo_uid_nfc or n.codigo_interno }}?')">
+                      <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% else %}
+          <div class="empty-iot">Sin dispositivos NFC registrados.</div>
+        {% endif %}
+
+        <script>
+        function editUID(id) {
+          document.getElementById('nfc-uid-txt-' + id).style.display = 'none';
+          var form = document.getElementById('nfc-uid-form-' + id);
+          form.style.display = 'flex';
+        }
+        function cancelEditUID(id) {
+          document.getElementById('nfc-uid-txt-' + id).style.display = '';
+          document.getElementById('nfc-uid-form-' + id).style.display = 'none';
+        }
+        </script>
+
+        <!-- ── Beacons ─────────────────────────────────────────────────── -->
+        <div class="section-hdr" style="margin-top:28px">
+          <span class="dot dot-green"></span>
+          Beacons BLE
+          <span style="margin-left:auto;font-size:11px;color:var(--tx3)">
+            {{ beacons|length }} registrados ·
+            {{ beacons|selectattr('activo_beacon')|list|length }} activos
+          </span>
+        </div>
+
+        <!-- Formulario alta Beacon -->
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-hdr"><span class="card-ttl">➕ Registrar beacon BLE</span></div>
+          <div class="card-body">
+            <form method="POST" action="{{ url_for('admin_iot_add_beacon') }}"
+                  style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+              <div class="fg" style="flex:2;min-width:200px">
+                <label class="fl">UUID del beacon</label>
+                <input type="text" name="uuid_beacon" class="fc" required
+                       placeholder="Ej. F7826DA6-4FA2-4E98-8024-BC5B71E0893E"
+                       style="font-family:monospace;font-size:11px">
+              </div>
+              <div class="fg" style="flex:0 0 80px">
+                <label class="fl">Major</label>
+                <input type="number" name="major_beacon" class="fc" value="0" min="0" max="65535">
+              </div>
+              <div class="fg" style="flex:0 0 80px">
+                <label class="fl">Minor</label>
+                <input type="number" name="minor_beacon" class="fc" value="0" min="0" max="65535">
+              </div>
+              <div class="fg" style="flex:1;min-width:180px">
+                <label class="fl">Zona</label>
+                <select name="id_zona_beacon" class="fc" required>
+                  <option value="">— Selecciona zona —</option>
+                  {% for z in zonas_beacon %}
+                  <option value="{{ z.id_zona_beacon }}">{{ z.nombre_zona_beacon }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="fg" style="flex-shrink:0;padding-bottom:4px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
+                  <input type="checkbox" name="activo_beacon" checked> Activo
+                </label>
+              </div>
+              <button type="submit" class="btn btn-primary btn-sm">Registrar</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Tabla Beacons con acciones -->
+        {% if beacons %}
+        <div class="card">
+          <div class="tbl-wrap">
+            <table class="iot-tbl">
+              <thead>
+                <tr>
+                  <th>UUID</th>
+                  <th>Major</th>
+                  <th>Minor</th>
+                  <th>Activo</th>
+                  <th>Zona</th>
+                  <th>Ubicación</th>
+                  <th>Área</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for b in beacons %}
+              <tr>
+                <td class="ts-dim" style="font-family:monospace;font-size:10px">{{ b.uuid_beacon }}</td>
+                <td>{{ b.major_beacon }}</td>
+                <td>{{ b.minor_beacon }}</td>
+                <td>
+                  {% if b.activo_beacon %}
+                    <span class="badge b-green">Activo</span>
+                  {% else %}
+                    <span class="badge b-gray">Inactivo</span>
+                  {% endif %}
+                </td>
+                <td>{{ b.nombre_zona_beacon }}</td>
+                <td>{{ b.nombre_ubicacion }}</td>
+                <td>{{ b.nombre_area }}</td>
+                <td>
+                  <div style="display:flex;gap:6px">
+                    <form method="POST"
+                          action="{{ url_for('admin_iot_toggle_beacon', id_beacon=b.id_beacon) }}"
+                          style="display:inline">
+                      <button type="submit" class="btn btn-secondary btn-sm">
+                        {% if b.activo_beacon %}🔒 Desactivar{% else %}🔓 Activar{% endif %}
+                      </button>
+                    </form>
+                    <form method="POST"
+                          action="{{ url_for('admin_iot_delete_beacon', id_beacon=b.id_beacon) }}"
+                          style="display:inline"
+                          onsubmit="return confirm('¿Desactivar el beacon {{ b.uuid_beacon[:8] }}...?')">
+                      <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% else %}
+          <div class="empty-iot">Sin beacons registrados.</div>
+        {% endif %}
+
+      </div>
+
+      <!-- Tab: Auditoría -->
+      <div id="t-audit" class="tab-pane">
+        <div class="section-hdr">
+          <span class="dot dot-purple"></span>
+          Últimas 100 acciones auditadas
+        </div>
+        {% if auditoria_reciente %}
+        <div class="card">
+          <div class="tbl-wrap">
+            <table class="iot-tbl">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Tabla</th>
+                  <th>Acción</th>
+                  <th>Registro</th>
+                  <th>Usuario</th>
+                  <th>Origen</th>
+                  <th>Fecha/hora</th>
+                  <th>Nivel</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for a in auditoria_reciente %}
+              <tr>
+                <td class="ts-dim">{{ a.id_auditoria }}</td>
+                <td>{{ a.tabla_afectada }}</td>
+                <td>
+                  {% if a.accion_auditoria in ('DESACTIVACION', 'DELETE_LOGICO') %}
+                    <span class="badge b-red">{{ a.accion_auditoria }}</span>
+                  {% elif a.accion_auditoria == 'ACTIVACION' %}
+                    <span class="badge b-green">{{ a.accion_auditoria }}</span>
+                  {% else %}
+                    <span class="badge b-gray">{{ a.accion_auditoria }}</span>
+                  {% endif %}
+                </td>
+                <td>{{ a.id_registro_afectado }}</td>
+                <td><strong>{{ a.ejecutado_por }}</strong></td>
+                <td class="ts-dim">{{ a.origen_cambio }}</td>
+                <td class="ts-dim">{{ a.fecha_hora_auditoria }}</td>
+                <td class="ts-dim">{{ a.nivel_atencion }}</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% else %}
+          <div class="empty-iot">Sin registros de auditoría.</div>
+        {% endif %}
+      </div>
+
+      <!-- ── Tab: Actividad usuarios ── -->
+      <div id="t-users" class="tab-pane">
+        <div class="section-hdr">
+          <span class="dot dot-green"></span>
+          Actividad del sistema por usuario
+        </div>
+        {% if actividad_usuarios %}
+        <div class="card">
+          <div class="tbl-wrap">
+            <table class="iot-tbl">
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th>Rol</th>
+                  <th>Total operaciones</th>
+                  <th>Tablas afectadas</th>
+                  <th>Última actividad</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for u in actividad_usuarios %}
+              <tr>
+                <td><strong>{{ u.username }}</strong></td>
+                <td>{{ u.rol_usuario }}</td>
+                <td>{{ u.total_operaciones }}</td>
+                <td>{{ u.tablas_distintas_afectadas }}</td>
+                <td class="ts-dim">{{ u.ultima_actividad or '—' }}</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% else %}
+          <div class="empty-iot">Sin datos de actividad registrados.</div>
+        {% endif %}
+      </div>
+
+    </div>
+
+
+    <span id="iot-refresh-url"
+          data-url="{{ url_for('admin_iot_json') }}"
+          hidden></span>
+
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script>
+'use strict';
+
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-iot').forEach(b => b.classList.remove('active'));
+  const pane = document.getElementById(id);
+  if (pane) pane.classList.add('active');
+  btn.classList.add('active');
+}
+
+</script>
+</body>
+</html>

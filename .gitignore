@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+
+# ngrok binaries
+ngrok
+ngrok-v3-stable-linux-amd64.tgz
+
+# Editor
+.vscode/
+.idea/

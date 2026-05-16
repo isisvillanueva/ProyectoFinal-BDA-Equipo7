@@ -1,8 +1,15 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HospitalIoT — Médico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
 {% from 'macros.html' import flash_msgs, estado_badge, bar_h %}
-{% block title %}HospitalIoT — Médico{% endblock %}
 
-{% block body %}
 <div class="app">
   <aside class="sidebar">
     <div class="sb-top">
@@ -47,6 +54,7 @@
           <div class="stat" style="--sc:var(--green)"><div class="st-ico">✅</div><div class="st-label">Equipos disponibles</div><div class="st-val">{{ disponibles|length }}</div></div>
           <div class="stat" style="--sc:var(--teal)"><div class="st-ico">📌</div><div class="st-label">Asignados a mí</div><div class="st-val">{{ mis_asignaciones|length }}</div></div>
           <div class="stat" style="--sc:var(--blue)"><div class="st-ico">📋</div><div class="st-label">Usos registrados</div><div class="st-val">{{ mis_usos|length }}</div></div>
+          <div class="stat" style="--sc:var(--red)"><div class="st-ico">🚨</div><div class="st-label">Críticos no disponibles</div><div class="st-val">{{ criticos_no_disponibles|length }}</div></div>
         </div>
         <div class="two">
           <div class="card">
@@ -58,7 +66,7 @@
                 <tr>
                   <td><strong>{{ a.nombre_equipo }}</strong><br><span class="cod">{{ a.codigo_interno }}</span></td>
                   <td>{{ a.nombre_ubicacion }}</td>
-                  <td><span class="mono">{{ a.fecha_asignacion.strftime('%d/%m/%Y') if a.fecha_asignacion else '—' }}</span></td>
+                  <td><span class="mono">{{ a.fecha_inicio_asignacion.strftime('%d/%m/%Y') if a.fecha_inicio_asignacion else '—' }}</span></td>
                 </tr>
                 {% else %}<tr><td colspan="3" class="empty">Sin equipos asignados</td></tr>{% endfor %}
               </tbody>
@@ -73,11 +81,86 @@
                 <div class="tl-it">
                   <div class="tl-dot tl-teal"></div>
                   <div class="tl-t">{{ u.nombre_equipo }}</div>
-                  <div class="tl-s"><span class="cod">{{ u.codigo_interno }}</span> · {{ u.fecha_uso.strftime('%d/%m %H:%M') if u.fecha_uso else '—' }}</div>
+                  <div class="tl-s"><span class="cod">{{ u.codigo_interno }}</span> · {{ u.fecha_hora_inicio.strftime('%d/%m %H:%M') if u.fecha_hora_inicio else '—' }}</div>
                 </div>
                 {% endfor %}
               </div>
               {% else %}<div class="empty">Sin usos registrados</div>{% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="two">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🚨 Equipos críticos no disponibles</span></div>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Código</th><th>Equipo</th><th>Criticidad</th><th>Estado</th><th>Área</th></tr></thead>
+              <tbody>
+                {% for e in criticos_no_disponibles %}
+                <tr>
+                  <td><span class="cod">{{ e.codigo_interno }}</span></td>
+                  <td><strong>{{ e.nombre_equipo }}</strong></td>
+                  <td><span class="badge b-red">{{ e.criticidad_equipo }}</span></td>
+                  <td><span class="badge b-orange">{{ e.estado_equipo }}</span></td>
+                  <td>{{ e.nombre_area }}</td>
+                </tr>
+                {% else %}<tr><td colspan="5" class="empty">Sin equipos críticos fuera de servicio</td></tr>{% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🔥 Equipos de alta demanda</span></div>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Código</th><th>Equipo</th><th>Criticidad</th><th>Usos clínicos</th><th>Mantenimientos</th></tr></thead>
+              <tbody>
+                {% for e in alta_demanda %}
+                <tr>
+                  <td><span class="cod">{{ e.codigo_interno }}</span></td>
+                  <td><strong>{{ e.nombre_equipo }}</strong></td>
+                  <td><span class="badge b-{{ 'red' if e.criticidad_equipo == 'Alta' else 'orange' if e.criticidad_equipo == 'Media' else 'blue' }}">{{ e.criticidad_equipo }}</span></td>
+                  <td><span class="mono">{{ e.total_usos_clinicos }}</span></td>
+                  <td><span class="mono">{{ e.total_mantenimientos }}</span></td>
+                </tr>
+                {% else %}<tr><td colspan="5" class="empty">Sin datos de demanda</td></tr>{% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+        <div class="two">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🏥 Disponibilidad por área</span></div>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Área</th><th>Responsable</th><th>Total</th><th>Disponibles</th><th>%</th></tr></thead>
+              <tbody>
+                {% for a in disponibilidad_area %}
+                {% set pct = ((a.equipos_disponibles / a.total_equipos * 100)|int) if a.total_equipos > 0 else 0 %}
+                <tr>
+                  <td><strong>{{ a.nombre_area }}</strong></td>
+                  <td><span style="font-size:11px;color:var(--tx2)">{{ a.responsable_activo }}</span></td>
+                  <td><span class="mono">{{ a.total_equipos }}</span></td>
+                  <td><span class="mono">{{ a.equipos_disponibles }}</span></td>
+                  <td style="min-width:100px">
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <div style="flex:1;background:rgba(221,229,238,.2);border-radius:4px;height:6px">
+                        <div style="width:{{ pct }}%;background:{% if pct >= 60 %}var(--green){% elif pct >= 30 %}var(--orange){% else %}var(--red){% endif %};height:6px;border-radius:4px"></div>
+                      </div>
+                      <span class="badge b-{% if pct >= 60 %}green{% elif pct >= 30 %}orange{% else %}red{% endif %}">{{ pct }}%</span>
+                    </div>
+                  </td>
+                </tr>
+                {% else %}<tr><td colspan="5" class="empty">Sin datos de áreas</td></tr>{% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🔬 Disponibilidad por tipo de equipo</span></div>
+            <div class="card-body">
+              {% for r in rpt_por_tipo %}
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                <div style="width:130px;font-size:11px;font-weight:600;color:var(--tx2);flex-shrink:0">{{ r.tipo_equipo }}</div>
+                <div style="flex:1">{{ bar_h(r.disponibles, r.total, 'var(--green)') }}</div>
+                <span class="badge b-green" style="flex-shrink:0">{{ r.disponibles }}/{{ r.total }}</span>
+              </div>
+              {% endfor %}
             </div>
           </div>
         </div>
@@ -86,8 +169,7 @@
       <!-- ══ REPORTES ══ -->
       <section id="v-reportes" class="view">
         <div class="phdr">
-          <div><div class="ptitle">Mis <em>Métricas</em> Clínicas</div><div class="psub">Actividad personal y disponibilidad de equipos del hospital</div></div>
-          <div style="display:flex;gap:8px"><span class="pill">📊 Chart.js 4</span><span class="pill">🔄 Datos en vivo</span></div>
+          <div><div class="ptitle">Mis <em>Métricas</em> Clínicas</div><div class="psub">Actividad clínica personal y contexto del parque de equipos</div></div>
         </div>
 
         <div class="rpt-kpi-grid">
@@ -101,8 +183,8 @@
           <div class="rpt-kpi" style="--kc:var(--green)">
             <div class="rpt-kpi-icon">✅</div>
             <div class="rpt-kpi-val">{{ disponibles|length }}</div>
-            <div class="rpt-kpi-label">Equipos disponibles</div>
-            <div class="rpt-kpi-sub">Listos ahora mismo</div>
+            <div class="rpt-kpi-label">Disponibles en el hospital</div>
+            <div class="rpt-kpi-sub">Ver sección Disponibles para ubicación exacta</div>
             <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--green);width:{{ ((disponibles|length / (rpt_por_tipo|sum(attribute='total') or 1))*100)|int }}%"></div></div>
           </div>
           <div class="rpt-kpi" style="--kc:var(--blue)">
@@ -121,37 +203,40 @@
           </div>
         </div>
 
-        <div class="rpt-section-label"><span class="rpt-section-tag">// gráficas</span>Datos reales de la BD</div>
+        <div class="rpt-section-label"><span class="rpt-section-tag">Hospital</span>Visión global del parque de equipos</div>
 
-        <div class="rpt-charts-grid">
-          <div class="card">
-            <div class="card-hdr">
-              <span class="card-ttl">📊 Mis equipos más utilizados</span>
-              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:rgba(14,116,144,.85)"></span>Usos clínicos</span>
-            </div>
-            <div class="card-body rpt-chart-body"><canvas id="chart-mis-usos"></canvas></div>
+        <div class="rpt-kpi-grid">
+          <div class="rpt-kpi" style="--kc:var(--red)">
+            <div class="rpt-kpi-icon">🚨</div>
+            <div class="rpt-kpi-val">{{ criticos_no_disponibles|length }}</div>
+            <div class="rpt-kpi-label">Críticos no disponibles</div>
+            <div class="rpt-kpi-sub">Equipos de alta criticidad fuera de servicio o en mantenimiento</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--red);width:{{ [criticos_no_disponibles|length * 25, 100]|min }}%"></div></div>
           </div>
-          <div class="card">
-            <div class="card-hdr">
-              <span class="card-ttl">🥧 Disponibilidad global de equipos</span>
-              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:var(--green)"></span>Disp. &nbsp;<span class="rpt-leg-dot" style="background:var(--teal)"></span>Uso &nbsp;<span class="rpt-leg-dot" style="background:var(--amber)"></span>Mant.</span>
-            </div>
-            <div class="card-body rpt-chart-body"><canvas id="chart-estados-med"></canvas></div>
+          <div class="rpt-kpi" style="--kc:var(--orange)">
+            <div class="rpt-kpi-icon">🔥</div>
+            <div class="rpt-kpi-val">{{ alta_demanda|length }}</div>
+            <div class="rpt-kpi-label">Equipos de alta demanda</div>
+            <div class="rpt-kpi-sub">Con mayor historial de usos clínicos y mantenimientos</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--orange);width:{{ [alta_demanda|length * 15, 100]|min }}%"></div></div>
+          </div>
+          <div class="rpt-kpi" style="--kc:var(--teal)">
+            <div class="rpt-kpi-icon">🏥</div>
+            <div class="rpt-kpi-val">{{ disponibilidad_area|length }}</div>
+            <div class="rpt-kpi-label">Áreas monitoreadas</div>
+            <div class="rpt-kpi-sub">Áreas con equipos registrados en el hospital</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--teal);width:{{ [disponibilidad_area|length * 12, 100]|min }}%"></div></div>
           </div>
         </div>
 
-        <div class="rpt-section-label"><span class="rpt-section-tag">// disponibilidad</span>Por tipo de equipo</div>
-
-        <div class="card">
-          <div class="card-hdr"><span class="card-ttl">🔬 Disponibilidad de equipos por tipo</span></div>
-          <div class="card-body">
-            {% for r in rpt_por_tipo %}
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-              <div style="width:130px;font-size:11px;font-weight:600;color:var(--tx2);flex-shrink:0">{{ r.tipo_equipo }}</div>
-              <div style="flex:1">{{ bar_h(r.disponibles, r.total, 'var(--green)') }}</div>
-              <span class="badge b-green" style="flex-shrink:0">{{ r.disponibles }}/{{ r.total }}</span>
-            </div>
-            {% endfor %}
+        <div class="rpt-charts-grid">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">📊 Mis equipos más utilizados</span></div>
+            <div class="card-body rpt-chart-body" style="height:280px"><div id="chart-mis-usos" style="height:270px"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">📈 Mis usos clínicos por mes</span></div>
+            <div class="card-body rpt-chart-body" style="height:280px"><div id="chart-usos-mes" style="height:270px"></div></div>
           </div>
         </div>
       </section>
@@ -169,7 +254,7 @@
                 <td><strong>{{ e.nombre_equipo }}</strong></td>
                 <td><span style="font-size:11px;color:var(--tx3)">{{ e.marca }}</span></td>
                 <td><span class="badge b-blue">{{ e.tipo_equipo }}</span></td>
-                <td>{{ e.area }}</td><td>{{ e.nombre_ubicacion }}</td>
+                <td>{{ e.nombre_area }}</td><td>{{ e.nombre_ubicacion }}</td>
                 <td>
                   <form method="POST" action="{{ url_for('medico_uso') }}">
                     <input type="hidden" name="id_equipo" value="{{ e.id_equipo }}">
@@ -196,7 +281,7 @@
                   {% for e in todos_equipos %}<option value="{{ e.id_equipo }}">{{ e.codigo_interno }} — {{ e.nombre_equipo }}</option>{% endfor %}
                 </select>
               </div>
-              <div class="fg"><label class="fl">Médico responsable</label><input class="fc" value="{{ session.nombre }}" readonly></div>
+              <div class="fg"><label class="fl">Médico responsable</label><input class="fc" value="{{ session.nombre_completo or session.nombre }}" readonly></div>
               <div class="al in" style="margin-bottom:16px">
                 <span class="al-ic">ℹ️</span>
                 <div class="al-b"><strong>Validación automática (trigger BD)</strong><span>La fecha/hora se registran al confirmar. Se verifica disponibilidad del equipo y autorización clínica.</span></div>
@@ -218,7 +303,7 @@
               <tr>
                 <td><strong>{{ a.nombre_equipo }}</strong><br><span class="cod">{{ a.codigo_interno }}</span></td>
                 <td>{{ a.nombre_ubicacion }}</td>
-                <td><span class="mono">{{ a.fecha_asignacion.strftime('%d/%m/%Y %H:%M') if a.fecha_asignacion else '—' }}</span></td>
+                <td><span class="mono">{{ a.fecha_inicio_asignacion.strftime('%d/%m/%Y %H:%M') if a.fecha_inicio_asignacion else '—' }}</span></td>
                 <td><span class="badge b-green"><span class="bdot"></span>Activa</span></td>
                 <td><span style="font-size:11px;color:var(--tx3)">{{ a.observacion_asignacion or '—' }}</span></td>
               </tr>
@@ -233,20 +318,23 @@
         <div class="phdr"><div><div class="ptitle">Historial de <em>Uso Clínico</em></div><div class="psub">{{ mis_usos|length }} registros personales</div></div></div>
         <div class="card">
           <div class="tbl-wrap"><table class="tbl">
-            <thead><tr><th>Equipo</th><th>Código</th><th>Fecha de uso</th><th>Acción</th></tr></thead>
+            <thead><tr><th>Equipo</th><th>Código</th><th>Procedimiento</th><th>Área</th><th>Duración</th><th>Fecha de uso</th><th>Acción</th></tr></thead>
             <tbody>
               {% for u in mis_usos %}
               <tr>
                 <td><strong>{{ u.nombre_equipo }}</strong></td>
                 <td><span class="cod">{{ u.codigo_interno }}</span></td>
-                <td><span class="mono">{{ u.fecha_uso.strftime('%d/%m/%Y %H:%M') if u.fecha_uso else '—' }}</span></td>
+                <td><span class="badge b-blue">{{ u.tipo_procedimiento or '—' }}</span></td>
+                <td>{{ u.nombre_area or '—' }}</td>
+                <td><span class="mono">{{ '%.1f h'|format(u.duracion_horas) if u.duracion_horas else '—' }}</span></td>
+                <td><span class="mono">{{ u.fecha_hora_inicio.strftime('%d/%m/%Y %H:%M') if u.fecha_hora_inicio else '—' }}</span></td>
                 <td>
-                  <form method="POST" action="{{ url_for('medico_eliminar_uso', id_uso=u.id_uso_clinico) }}">
-                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar este registro de uso?')">🗑 Eliminar</button>
+                  <form method="POST" action="{{ url_for('medico_cerrar_uso', id_uso=u.id_uso_clinico) }}">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Cerrar este registro de uso?')">🗑 Cerrar</button>
                   </form>
                 </td>
               </tr>
-              {% else %}<tr><td colspan="4" class="empty">Sin historial de uso</td></tr>{% endfor %}
+              {% else %}<tr><td colspan="7" class="empty">Sin historial de uso</td></tr>{% endfor %}
             </tbody>
           </table></div>
         </div>
@@ -255,70 +343,78 @@
     </div>
   </div>
 </div>
-{% endblock %}
+<div id="toast"></div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
 
-{% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://code.highcharts.com/highcharts.js"></script>
 <script>
-const misUsosData    = {{ rpt_mis_equipos_usados | tojson }};
-const estadosMedData = {{ rpt_estados_globales | tojson }};
+const misUsosData = {{ rpt_mis_equipos_usados | tojson }};
+const usosMesData = {{ rpt_mis_usos_por_mes   | tojson }};
 
-Chart.defaults.font.family = "'Outfit', sans-serif";
-Chart.defaults.color = '#8fa3b8';
-Chart.defaults.borderColor = 'rgba(221,229,238,.4)';
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: "'Outfit', sans-serif" } },
+  title: { text: '' },
+  credits: { enabled: false },
+  legend: { itemStyle: { color: '#8fa3b8', fontWeight: 'normal', fontSize: '11px' } }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Mis equipos más usados — barras horizontales
-  const ctx1 = document.getElementById('chart-mis-usos');
-  if (ctx1 && misUsosData.length > 0) {
-    new Chart(ctx1, {
-      type: 'bar',
-      data: {
-        labels: misUsosData.map(r => r.nombre_equipo.substring(0,20)),
-        datasets: [{
-          label: 'Usos clínicos',
-          data: misUsosData.map(r => r.total_usos),
-          backgroundColor: 'rgba(14,116,144,.82)',
-          borderRadius: 4, borderSkipped: false
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } },
-          y: { grid: { display: false }, ticks: { font: { size: 10 } } }
-        }
-      }
-    });
-  } else if (ctx1) {
-    const p = document.createElement('p');
-    p.textContent = 'Sin usos clínicos registrados aún.';
-    p.style.cssText = 'text-align:center;color:#8fa3b8;padding:40px;font-size:12px';
-    ctx1.replaceWith(p);
+  // Barras horizontales — mis equipos más usados
+  const contUsos = document.getElementById('chart-mis-usos');
+  if (contUsos) {
+    if (misUsosData.length > 0) {
+      Highcharts.chart('chart-mis-usos', {
+        chart: { type: 'bar', height: 270 },
+        xAxis: {
+          categories: misUsosData.map(r => r.nombre_equipo),
+          labels: { style: { color: '#8fa3b8', fontSize: '10px' } },
+          lineColor: 'rgba(221,229,238,.4)', tickColor: 'transparent',
+          title: { text: 'Equipo', style: { color: '#8fa3b8', fontSize: '10px' } }
+        },
+        yAxis: {
+          title: { text: 'Usos clínicos', style: { color: '#8fa3b8', fontSize: '10px' } },
+          gridLineColor: 'rgba(221,229,238,.2)',
+          labels: { style: { color: '#8fa3b8', fontSize: '10px' } },
+          allowDecimals: false
+        },
+        plotOptions: { bar: { borderRadius: 4, color: '#0e7490' } },
+        legend: { enabled: false },
+        tooltip: { headerFormat: '', pointFormat: '<b>{point.category}</b>: {point.y} uso(s) clínico(s)' },
+        series: [{ name: 'Usos', data: misUsosData.map(r => r.total_usos) }]
+      });
+    } else {
+      contUsos.innerHTML = '<p style="text-align:center;color:#8fa3b8;padding:60px;font-size:12px">Sin usos clínicos registrados aún</p>';
+    }
   }
 
-  // Estado global doughnut
-  const ctx2 = document.getElementById('chart-estados-med');
-  if (ctx2 && estadosMedData.length > 0) {
-    const colores = { 'Disponible':'#047857','En uso':'#0e7490','En mantenimiento':'#b45309','Fuera de servicio':'#b91c1c' };
-    new Chart(ctx2, {
-      type: 'doughnut',
-      data: {
-        labels: estadosMedData.map(r => r.estado_equipo),
-        datasets: [{
-          data: estadosMedData.map(r => r.total),
-          backgroundColor: estadosMedData.map(r => colores[r.estado_equipo] || '#8fa3b8'),
-          borderWidth: 2, borderColor: '#fff', hoverOffset: 6
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false, cutout: '62%',
-        plugins: { legend: { position: 'right', labels: { font: { size: 10 }, padding: 10, boxWidth: 10 } } }
-      }
-    });
+  // Areaspline — mis usos clínicos por mes
+  const contMes = document.getElementById('chart-usos-mes');
+  if (contMes) {
+    if (usosMesData.length > 0) {
+      Highcharts.chart('chart-usos-mes', {
+        chart: { type: 'areaspline', height: 210 },
+        xAxis: {
+          categories: usosMesData.map(r => r.mes),
+          labels: { style: { color: '#8fa3b8', fontSize: '10px' } },
+          lineColor: 'rgba(221,229,238,.4)', tickColor: 'transparent'
+        },
+        yAxis: {
+          title: { text: 'Usos clínicos', style: { color: '#8fa3b8', fontSize: '10px' } },
+          gridLineColor: 'rgba(221,229,238,.2)',
+          labels: { style: { color: '#8fa3b8', fontSize: '10px' } },
+          allowDecimals: false, min: 0
+        },
+        plotOptions: { areaspline: { color: '#0e7490', fillColor: { linearGradient: { x1:0,y1:0,x2:0,y2:1 }, stops: [[0,'rgba(14,116,144,.35)'],[1,'rgba(14,116,144,0)']] }, lineWidth: 2, marker: { enabled: false } } },
+        legend: { enabled: false },
+        tooltip: { headerFormat: '', pointFormat: '<b>{point.category}</b>: {point.y} uso(s) clínico(s)' },
+        series: [{ name: 'Usos', data: usosMesData.map(r => r.total) }]
+      });
+    } else {
+      contMes.innerHTML = '<p style="text-align:center;color:#8fa3b8;padding:40px;font-size:12px">Sin historial de usos por mes</p>';
+    }
   }
 });
 </script>
-{% endblock %}
+
+</body>
+</html>

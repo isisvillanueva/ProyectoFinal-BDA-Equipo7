@@ -1,8 +1,15 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HospitalIoT — Enfermería</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
 {% from 'macros.html' import flash_msgs, estado_badge, bar_h %}
-{% block title %}HospitalIoT — Enfermería{% endblock %}
 
-{% block body %}
 <div class="app">
   <aside class="sidebar">
     <div class="sb-top">
@@ -10,8 +17,8 @@
       <div class="sb-badge" style="background:rgba(4,120,87,.25);color:#6ee7b7">💉 Enfermería</div>
     </div>
     <nav class="sb-nav">
-      <div class="sbn-sec">Mi área</div>
-      <button class="sbn-item" data-view="v-dash"       onclick="goTo('v-dash')"><span class="sbn-ic">📊</span>Estado del área</button>
+      <div class="sbn-sec">Hospital</div>
+      <button class="sbn-item" data-view="v-dash"       onclick="goTo('v-dash')"><span class="sbn-ic">📊</span>Estado de mi área</button>
       <button class="sbn-item" data-view="v-reportes"   onclick="goTo('v-reportes')"><span class="sbn-ic">📈</span>Reportes</button>
       <button class="sbn-item" data-view="v-equipos"    onclick="goTo('v-equipos')"><span class="sbn-ic">🔬</span>Equipos del sistema</button>
       <div class="sbn-sec">Registros</div>
@@ -43,27 +50,27 @@
 
       <!-- ══ DASHBOARD ══ -->
       <section id="v-dash" class="view">
-        <div class="phdr"><div><div class="ptitle">Estado del <em>Área</em></div><div class="psub">Visión general del estado de equipos</div></div></div>
+        <div class="phdr"><div><div class="ptitle">Estado de <em>{{ mi_area_enf }}</em></div><div class="psub">Equipos en tu área asignada · Usa "Equipos del sistema" para ver todo el hospital</div></div></div>
         <div class="stats">
-          {% set disp = equipos|selectattr('estado_equipo','equalto','Disponible')|list %}
-          {% set en_uso = equipos|selectattr('estado_equipo','equalto','En uso')|list %}
-          {% set mant = equipos|selectattr('estado_equipo','equalto','En mantenimiento')|list %}
-          <div class="stat" style="--sc:var(--green)"><div class="st-ico">✅</div><div class="st-label">Disponibles</div><div class="st-val">{{ disp|length }}</div></div>
-          <div class="stat" style="--sc:var(--teal)"><div class="st-ico">▶️</div><div class="st-label">En uso</div><div class="st-val">{{ en_uso|length }}</div></div>
-          <div class="stat" style="--sc:var(--amber)"><div class="st-ico">🔧</div><div class="st-label">Mantenimiento</div><div class="st-val">{{ mant|length }}</div></div>
+          {% set disp = equipos_area|selectattr('estado_equipo','equalto','Disponible')|list %}
+          {% set en_uso = equipos_area|selectattr('estado_equipo','equalto','En uso')|list %}
+          {% set mant = equipos_area|selectattr('estado_equipo','equalto','En mantenimiento')|list %}
+          <div class="stat" style="--sc:var(--green)"><div class="st-ico">✅</div><div class="st-label">Disponibles en mi área</div><div class="st-val">{{ disp|length }}</div></div>
+          <div class="stat" style="--sc:var(--teal)"><div class="st-ico">▶️</div><div class="st-label">En uso en mi área</div><div class="st-val">{{ en_uso|length }}</div></div>
+          <div class="stat" style="--sc:var(--amber)"><div class="st-ico">🔧</div><div class="st-label">En mantenimiento</div><div class="st-val">{{ mant|length }}</div></div>
           <div class="stat" style="--sc:var(--blue)"><div class="st-ico">🔄</div><div class="st-label">Mis movimientos</div><div class="st-val">{{ mis_movs|length }}</div></div>
         </div>
         <div class="two">
           <div class="card">
-            <div class="card-hdr"><span class="card-ttl">🔬 Estado de equipos</span></div>
+            <div class="card-hdr"><span class="card-ttl">🔬 Equipos en {{ mi_area_enf }} (primeros 8)</span></div>
             <div class="tbl-wrap"><table class="tbl">
-              <thead><tr><th>Equipo</th><th>Estado</th><th>Área</th></tr></thead>
+              <thead><tr><th>Equipo</th><th>Estado</th><th>Ubicación</th></tr></thead>
               <tbody>
-                {% for e in equipos[:8] %}
+                {% for e in equipos_area[:8] %}
                 <tr>
                   <td><strong>{{ e.nombre_equipo }}</strong></td>
                   <td>{{ estado_badge(e.estado_equipo) }}</td>
-                  <td>{{ e.area }}</td>
+                  <td>{{ e.nombre_ubicacion }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -78,7 +85,7 @@
                 <div class="tl-it">
                   <div class="tl-dot tl-teal"></div>
                   <div class="tl-t">{{ m.nombre_equipo }}</div>
-                  <div class="tl-s"><span class="badge b-teal" style="font-size:9px">{{ m.tipo_movimiento }}</span> {{ m.origen }} → {{ m.destino }}<br><span class="mono">{{ m.fecha_movimiento.strftime('%d/%m %H:%M') if m.fecha_movimiento else '—' }}</span></div>
+                  <div class="tl-s"><span class="badge b-teal" style="font-size:9px">{{ m.tipo_movimiento }}</span> {{ m.origen }} → {{ m.destino }}<br><span class="mono">{{ m.fecha_hora_movimiento.strftime('%d/%m %H:%M') if m.fecha_hora_movimiento else '—' }}</span></div>
                 </div>
                 {% endfor %}
               </div>
@@ -92,7 +99,6 @@
       <section id="v-reportes" class="view">
         <div class="phdr">
           <div><div class="ptitle">Reportes <em>Operativos</em></div><div class="psub">Métricas de movimientos y estado de equipos del hospital</div></div>
-          <div style="display:flex;gap:8px"><span class="pill">📊 Chart.js 4</span><span class="pill">🔄 Datos en vivo</span></div>
         </div>
 
         <div class="rpt-kpi-grid">
@@ -105,10 +111,10 @@
           </div>
           <div class="rpt-kpi" style="--kc:var(--green)">
             <div class="rpt-kpi-icon">✅</div>
-            <div class="rpt-kpi-val">{{ equipos|selectattr('estado_equipo','equalto','Disponible')|list|length }}</div>
-            <div class="rpt-kpi-label">Equipos disponibles</div>
-            <div class="rpt-kpi-sub">En el sistema ahora</div>
-            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--green);width:{{ ((equipos|selectattr('estado_equipo','equalto','Disponible')|list|length / (equipos|length or 1))*100)|int }}%"></div></div>
+            <div class="rpt-kpi-val">{{ equipos_area|selectattr('estado_equipo','equalto','Disponible')|list|length }}</div>
+            <div class="rpt-kpi-label">Disponibles en mi área</div>
+            <div class="rpt-kpi-sub">{{ mi_area_enf }} · de {{ equipos_area|length }} equipos en el área</div>
+            <div class="rpt-kpi-bar"><div class="rpt-kpi-fill" style="background:var(--green);width:{{ ((equipos_area|selectattr('estado_equipo','equalto','Disponible')|list|length / (equipos_area|length or 1))*100)|int }}%"></div></div>
           </div>
           <div class="rpt-kpi" style="--kc:var(--blue)">
             <div class="rpt-kpi-icon">🏥</div>
@@ -126,26 +132,24 @@
           </div>
         </div>
 
-        <div class="rpt-section-label"><span class="rpt-section-tag">// gráficas</span>Datos reales de BD</div>
+        <div class="rpt-section-label"><span class="rpt-section-tag">Análisis</span>Distribución y actividad del sistema</div>
 
         <div class="rpt-charts-grid">
           <div class="card">
             <div class="card-hdr">
-              <span class="card-ttl">📊 Movimientos por área hospitalaria</span>
-              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:rgba(14,116,144,.85)"></span>Movimientos</span>
+              <span class="card-ttl">🔄 Mis movimientos por tipo</span>
             </div>
-            <div class="card-body rpt-chart-body"><canvas id="chart-movs-area"></canvas></div>
+            <div class="card-body rpt-chart-body" style="height:280px"><div id="chart-mis-movs-tipo" style="height:270px"></div></div>
           </div>
           <div class="card">
             <div class="card-hdr">
-              <span class="card-ttl">🥧 Estado actual de equipos</span>
-              <span class="rpt-chart-legend"><span class="rpt-leg-dot" style="background:var(--green)"></span>Disp. &nbsp;<span class="rpt-leg-dot" style="background:var(--teal)"></span>Uso &nbsp;<span class="rpt-leg-dot" style="background:var(--amber)"></span>Mant.</span>
+              <span class="card-ttl">🥧 Estado de equipos en mi área</span>
             </div>
-            <div class="card-body rpt-chart-body"><canvas id="chart-estados-enf"></canvas></div>
+            <div class="card-body rpt-chart-body" style="height:280px"><div id="chart-estados-enf" style="height:270px"></div></div>
           </div>
         </div>
 
-        <div class="rpt-section-label"><span class="rpt-section-tag">// frecuencia</span>Por tipo de movimiento</div>
+        <div class="rpt-section-label"><span class="rpt-section-tag">Frecuencia</span>Por tipo de movimiento</div>
 
         <div class="card">
           <div class="card-hdr"><span class="card-ttl">🔄 Frecuencia por tipo de movimiento del sistema</span></div>
@@ -216,7 +220,7 @@
                 </div>
               </div>
               <div class="fg"><label class="fl">Observación</label><input class="fc" name="observacion" placeholder="Motivo del movimiento…"></div>
-              <div class="fg"><label class="fl">Responsable</label><input class="fc" value="{{ session.nombre }}" readonly></div>
+              <div class="fg"><label class="fl">Responsable</label><input class="fc" value="{{ session.nombre_completo or session.nombre }}" readonly></div>
               <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">🔄 Registrar movimiento</button>
             </form>
           </div>
@@ -236,7 +240,7 @@
                   {% for e in todos_equipos %}<option value="{{ e.id_equipo }}">{{ e.codigo_interno }} — {{ e.nombre_equipo }}</option>{% endfor %}
                 </select>
               </div>
-              <div class="fg"><label class="fl">Responsable</label><input class="fc" value="{{ session.nombre }}" readonly></div>
+              <div class="fg"><label class="fl">Responsable</label><input class="fc" value="{{ session.nombre_completo or session.nombre }}" readonly></div>
               <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">✅ Registrar uso clínico</button>
             </form>
           </div>
@@ -257,7 +261,7 @@
                   <td><strong>{{ m.nombre_equipo }}</strong></td>
                   <td><span class="badge b-teal">{{ m.tipo_movimiento }}</span></td>
                   <td>{{ m.origen }} → {{ m.destino }}</td>
-                  <td><span class="mono">{{ m.fecha_movimiento.strftime('%d/%m %H:%M') if m.fecha_movimiento else '—' }}</span></td>
+                  <td><span class="mono">{{ m.fecha_hora_movimiento.strftime('%d/%m %H:%M') if m.fecha_hora_movimiento else '—' }}</span></td>
                   <td>
                     <form method="POST" action="{{ url_for('enfermero_eliminar_mov', id_mov=m.id_movimiento) }}">
                       <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar este movimiento?')">🗑</button>
@@ -289,49 +293,66 @@
     </div>
   </div>
 </div>
-{% endblock %}
+<div id="toast"></div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
 
-{% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://code.highcharts.com/highcharts.js"></script>
 <script>
-const movsAreaData  = {{ rpt_movs_area | tojson }};
-const estadosEnfData= {{ rpt_estados | tojson }};
+const misMóvsRaw    = {{ mis_movs        | tojson }};
+const estadosEnfData= {{ rpt_estados_area | tojson }};
 
-Chart.defaults.font.family = "'Outfit', sans-serif";
-Chart.defaults.color = '#8fa3b8';
-Chart.defaults.borderColor = 'rgba(221,229,238,.4)';
+Highcharts.setOptions({
+  chart: { backgroundColor: 'transparent', style: { fontFamily: "'Outfit', sans-serif" } },
+  title: { text: '' },
+  credits: { enabled: false },
+  legend: { itemStyle: { color: '#8fa3b8', fontWeight: 'normal', fontSize: '11px' } }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
-  const palette = ['rgba(14,116,144,.8)','rgba(29,78,216,.75)','rgba(109,40,217,.75)','rgba(4,120,87,.75)','rgba(180,83,9,.75)','rgba(185,28,28,.75)','rgba(12,74,110,.8)','rgba(4,120,87,.6)','rgba(29,78,216,.5)','rgba(109,40,217,.5)'];
+  const palette = ['#0e7490','#1d4ed8','#6d28d9','#047857','#b45309','#b91c1c','#0c4a6e','#065f46','#1e3a8a','#4c1d95'];
 
-  const ctx1 = document.getElementById('chart-movs-area');
-  if (ctx1 && movsAreaData.length > 0) {
-    new Chart(ctx1, {
-      type: 'bar',
-      data: {
-        labels: movsAreaData.map(r => r.area),
-        datasets: [{ label: 'Movimientos', data: movsAreaData.map(r => r.total_movs), backgroundColor: movsAreaData.map((_,i) => palette[i % palette.length]), borderRadius: 4, borderSkipped: false }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { x: { grid: { display: false }, ticks: { font: { size: 9 } } }, y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } } }
-      }
-    });
+  const contMisTipos = document.getElementById('chart-mis-movs-tipo');
+  if (contMisTipos) {
+    const tiposAgrup = Object.entries(
+      misMóvsRaw.reduce((acc, m) => { acc[m.tipo_movimiento] = (acc[m.tipo_movimiento] || 0) + 1; return acc; }, {})
+    ).map(([tipo, total]) => ({ tipo, total })).sort((a, b) => b.total - a.total);
+    if (tiposAgrup.length > 0) {
+      Highcharts.chart('chart-mis-movs-tipo', {
+        chart: { type: 'bar', height: 270 },
+        xAxis: {
+          categories: tiposAgrup.map(r => r.tipo),
+          labels: { style: { color: '#8fa3b8', fontSize: '11px' } },
+          lineColor: 'rgba(221,229,238,.4)', tickColor: 'transparent',
+          title: { text: 'Tipo de movimiento', style: { color: '#8fa3b8', fontSize: '10px' } }
+        },
+        yAxis: {
+          title: { text: 'Veces registrado', style: { color: '#8fa3b8', fontSize: '10px' } },
+          gridLineColor: 'rgba(221,229,238,.2)',
+          labels: { style: { color: '#8fa3b8', fontSize: '10px' } },
+          allowDecimals: false
+        },
+        plotOptions: { bar: { borderRadius: 4, colorByPoint: true, colors: palette } },
+        legend: { enabled: false },
+        tooltip: { headerFormat: '', pointFormat: '<b>{point.category}</b>: {point.y} movimiento(s) registrado(s) por ti' },
+        series: [{ name: 'Movimientos', data: tiposAgrup.map(r => r.total) }]
+      });
+    } else {
+      contMisTipos.innerHTML = '<p style="text-align:center;color:#8fa3b8;padding:60px;font-size:12px">Sin movimientos registrados aún</p>';
+    }
   }
 
-  const ctx2 = document.getElementById('chart-estados-enf');
-  if (ctx2 && estadosEnfData.length > 0) {
-    const colE = {'Disponible':'#047857','En uso':'#0e7490','En mantenimiento':'#b45309','Fuera de servicio':'#b91c1c'};
-    new Chart(ctx2, {
-      type: 'doughnut',
-      data: {
-        labels: estadosEnfData.map(r => r.estado_equipo),
-        datasets: [{ data: estadosEnfData.map(r => r.total), backgroundColor: estadosEnfData.map(r => colE[r.estado_equipo]||'#8fa3b8'), borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
-      },
-      options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'right', labels: { font: { size: 10 }, padding: 8, boxWidth: 10 } } } }
+  const colE = {'Disponible':'#047857','En uso':'#0e7490','En mantenimiento':'#b45309','Fuera de servicio':'#b91c1c','Retirado':'#6b7280','En préstamo':'#6d28d9'};
+  if (estadosEnfData.length > 0) {
+    Highcharts.chart('chart-estados-enf', {
+      chart: { type: 'pie' },
+      plotOptions: { pie: { innerSize: '60%', dataLabels: { enabled: false }, showInLegend: true, borderWidth: 2, borderColor: '#fff' } },
+      legend: { layout: 'vertical', align: 'right', verticalAlign: 'middle', itemStyle: { color: '#8fa3b8', fontSize: '10px' } },
+      tooltip: { pointFormat: '<b>{point.name}</b>: {point.y} ({point.percentage:.1f}%)' },
+      series: [{ name: 'Total', data: estadosEnfData.map(r => ({ name: r.estado_equipo, y: r.total, color: colE[r.estado_equipo] || '#8fa3b8' })) }]
     });
   }
 });
 </script>
-{% endblock %}
+
+</body>
+</html>
