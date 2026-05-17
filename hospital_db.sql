@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict YVxyCRnpN6f6CEdWncz1dJz0HgZQd9ekmNAz9CKjC5LQA7z2pydEmklKqQkY5xX
+\restrict BuAo9hq1T8QP3a6bHbhfL8X5z9cxY6BOEd9ozQdbkrug4uh1htyzVjoQ1eqCTga
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13
@@ -1511,6 +1511,49 @@ $$;
 
 
 ALTER PROCEDURE public.sp_quitar_responsable_area(IN p_id_usuario integer, IN p_id_enfermero integer, OUT p_mensaje text, IN p_origen text) OWNER TO hospital_user;
+
+--
+-- Name: sp_registrar_beacon(integer, character varying, integer, integer, integer, text); Type: PROCEDURE; Schema: public; Owner: hospital_user
+--
+
+CREATE PROCEDURE public.sp_registrar_beacon(IN p_id_usuario integer, IN p_uuid character varying, IN p_major integer, IN p_minor integer, IN p_id_zona_beacon integer, OUT p_id_beacon integer, IN p_origen text DEFAULT 'sistema'::text)
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    PERFORM set_config('app.id_usuario', p_id_usuario::TEXT, TRUE);
+    PERFORM set_config('app.origen', p_origen, TRUE);
+
+    IF p_uuid IS NULL OR trim(p_uuid) = '' THEN
+        RAISE EXCEPTION 'El UUID del beacon es obligatorio.';
+    END IF;
+
+    IF p_major < 0 OR p_minor < 0 THEN
+        RAISE EXCEPTION 'Major y minor deben ser >= 0.';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM zona_beacon WHERE id_zona_beacon = p_id_zona_beacon) THEN
+        RAISE EXCEPTION 'La zona beacon % no existe.', p_id_zona_beacon;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM dispositivo_beacon
+        WHERE uuid_beacon = p_uuid AND major_beacon = p_major AND minor_beacon = p_minor
+    ) THEN
+        RAISE EXCEPTION 'Ya existe un beacon con ese UUID/major/minor.';
+    END IF;
+
+    INSERT INTO dispositivo_beacon (uuid_beacon, major_beacon, minor_beacon, activo_beacon, id_zona_beacon)
+    VALUES (p_uuid, p_major, p_minor, TRUE, p_id_zona_beacon)
+    RETURNING id_beacon INTO p_id_beacon;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE EXCEPTION 'sp_registrar_beacon: %', SQLERRM;
+END;
+$$;
+
+
+ALTER PROCEDURE public.sp_registrar_beacon(IN p_id_usuario integer, IN p_uuid character varying, IN p_major integer, IN p_minor integer, IN p_id_zona_beacon integer, OUT p_id_beacon integer, IN p_origen text) OWNER TO hospital_user;
 
 --
 -- Name: sp_registrar_equipo(integer, character varying, character varying, integer, character varying, integer, integer, integer, character varying, text); Type: PROCEDURE; Schema: public; Owner: postgres
@@ -4358,6 +4401,28 @@ CREATE VIEW public.v_mantenimientos_vencidos AS
 ALTER VIEW public.v_mantenimientos_vencidos OWNER TO postgres;
 
 --
+-- Name: v_mis_usos_clinicos; Type: VIEW; Schema: public; Owner: hospital_user
+--
+
+CREATE VIEW public.v_mis_usos_clinicos AS
+ SELECT u.id_uso_clinico,
+    u.id_persona_responsable_uso,
+    e.nombre_equipo,
+    e.codigo_interno,
+    ee.estado_equipo,
+    u.fecha_hora_inicio,
+    u.fecha_hora_fin,
+    ar.nombre_area
+   FROM ((((public.uso_clinico_equipo u
+     JOIN public.equipo e ON ((e.id_equipo = u.id_equipo)))
+     JOIN public.estado_equipos ee ON ((ee.id_estado_equipo = e.id_estado_equipo)))
+     JOIN public.ubicacion_especifica ue ON ((ue.id_ubicacion = e.id_ubicacion_administrativa_actual)))
+     JOIN public.area_registro ar ON ((ar.id_area = ue.id_area)));
+
+
+ALTER VIEW public.v_mis_usos_clinicos OWNER TO hospital_user;
+
+--
 -- Name: v_movimientos_recientes_por_area; Type: VIEW; Schema: public; Owner: postgres
 --
 
@@ -4543,6 +4608,30 @@ CREATE VIEW public.v_ultimo_movimiento_por_equipo AS
 
 
 ALTER VIEW public.v_ultimo_movimiento_por_equipo OWNER TO postgres;
+
+--
+-- Name: v_usos_clinicos_area; Type: VIEW; Schema: public; Owner: hospital_user
+--
+
+CREATE VIEW public.v_usos_clinicos_area AS
+ SELECT u.id_uso_clinico,
+    (((p.nombre_persona)::text || ' '::text) || (p.apellido_persona)::text) AS persona,
+    e.nombre_equipo,
+    e.codigo_interno,
+    ee.estado_equipo,
+    u.fecha_hora_inicio,
+    u.fecha_hora_fin,
+    ar.id_area,
+    ar.nombre_area
+   FROM (((((public.uso_clinico_equipo u
+     JOIN public.equipo e ON ((e.id_equipo = u.id_equipo)))
+     JOIN public.estado_equipos ee ON ((ee.id_estado_equipo = e.id_estado_equipo)))
+     JOIN public.ubicacion_especifica ue ON ((ue.id_ubicacion = e.id_ubicacion_administrativa_actual)))
+     JOIN public.area_registro ar ON ((ar.id_area = ue.id_area)))
+     JOIN public.persona p ON ((p.id_persona = u.id_persona_responsable_uso)));
+
+
+ALTER VIEW public.v_usos_clinicos_area OWNER TO hospital_user;
 
 --
 -- Name: zona_beacon_id_zona_beacon_seq; Type: SEQUENCE; Schema: public; Owner: postgres
@@ -5004,6 +5093,7 @@ COPY public.auditoria (id_auditoria, id_usuario, fecha_hora_auditoria, accion_au
 148	1	2026-05-16 06:46:10.184902	UPDATE	equipo	11	{"id_equipo": 11, "id_modelo": 1, "numero_serie": "", "activo_equipo": false, "nombre_equipo": "pipi", "codigo_interno": "EQ-011", "id_tipo_equipo": 1, "id_estado_equipo": 1, "id_criticidad_equipo": 3, "id_ubicacion_administrativa_actual": 1}	{"id_equipo": 11, "id_modelo": 1, "numero_serie": "SN-PH-2026-011", "activo_equipo": false, "nombre_equipo": "pipi", "codigo_interno": "EQ-011", "id_tipo_equipo": 1, "id_estado_equipo": 1, "id_criticidad_equipo": 3, "id_ubicacion_administrativa_actual": 1}	directo_bd
 149	4	2026-05-16 15:07:17.027499	UPDATE	equipo	2	{"id_equipo": 2, "id_modelo": 4, "numero_serie": "SN-DR-2024-002", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita", "codigo_interno": "EQ-002", "id_tipo_equipo": 4, "id_estado_equipo": 3, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 3}	{"id_equipo": 2, "id_modelo": 4, "numero_serie": "SN-DR-2024-002", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita", "codigo_interno": "EQ-002", "id_tipo_equipo": 4, "id_estado_equipo": 3, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 6}	sistema
 150	4	2026-05-16 15:07:17.027499	INSERT	movimiento	13	\N	{"id_equipo": 2, "id_movimiento": 13, "motivo_movimiento": "Equipo en mantenimiento trasladado a Bodega Biomédica", "id_tipo_movimiento": 1, "id_ubicacion_origen": 3, "id_ubicacion_destino": 6, "fecha_hora_movimiento": "2026-05-16T15:07:17.027499", "observacion_movimiento": "Corrección de ubicación: ventilador en mantenimiento debe estar en bodega biomédica, no en área clínica", "id_persona_responsable_movimiento": 4}	sistema
+151	1	2026-05-16 21:30:43.664428	INSERT	equipo	21	\N	{"id_equipo": 21, "id_modelo": 4, "numero_serie": "SN-DR-2026-012", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita C", "codigo_interno": "EQ-012", "id_tipo_equipo": 4, "id_estado_equipo": 1, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 5}	web_admin
 \.
 
 
@@ -5044,9 +5134,10 @@ COPY public.criticidad_equipos (id_criticidad_equipo, criticidad_equipo) FROM st
 --
 
 COPY public.dispositivo_beacon (id_beacon, uuid_beacon, major_beacon, minor_beacon, activo_beacon, id_zona_beacon) FROM stdin;
-1	BEACON-UUID-URGENCIAS	1	1	t	1
+3	BEACON-UUID-QUIR	3	1	f	3
 2	BEACON-UUID-UCI	2	1	t	2
-3	BEACON-UUID-QUIR	3	1	t	3
+1	BEACON-UUID-URGENCIAS	1	1	f	1
+8	4E6ED5AB-B3ED-4E10-8247-C5F5524D4B21	12	13	t	3
 \.
 
 
@@ -5075,7 +5166,8 @@ COPY public.dispositivo_nfc (id_nfc, codigo_uid_nfc, id_equipo, activo_nfc) FROM
 10	NFC-UID-EQ010	10	t
 4	NFC-UID-EQ004	4	f
 11		11	t
-1	15:CB:50:3D	1	t
+12	15CB503D	21	t
+1	15:CB:50:3D	1	f
 \.
 
 
@@ -5112,6 +5204,7 @@ COPY public.equipo (id_equipo, codigo_interno, nombre_equipo, id_modelo, numero_
 20	EQ-777	Monitor Philips MX500	1	SN-342-124	1	3	2	3	t
 11	EQ-011	pipi	1	SN-PH-2026-011	1	3	1	1	f
 2	EQ-002	Ventilador Dräger Evita	4	SN-DR-2024-002	4	1	3	6	t
+21	EQ-012	Ventilador Dräger Evita C	4	SN-DR-2026-012	4	1	1	5	t
 \.
 
 
@@ -5215,6 +5308,7 @@ COPY public.evento_beacon (id_evento_beacon, id_beacon, id_equipo, fecha_hora_ev
 6	3	9	2026-02-15 08:00:00	1
 7	1	1	2026-03-01 08:00:00	3
 8	2	5	2026-02-10 15:00:00	1
+9	8	21	2026-05-17 04:40:19.429817	1
 \.
 
 
@@ -5248,6 +5342,19 @@ COPY public.evento_nfc (id_evento_nfc, id_nfc, fecha_hora_evento, id_tipo_evento
 5	5	2026-01-20 08:05:00	1
 6	6	2026-02-01 07:35:00	1
 7	7	2026-03-01 15:05:00	1
+8	12	2026-05-16 22:04:06.364146	1
+9	12	2026-05-16 22:05:59.252759	1
+10	12	2026-05-16 22:13:19.226511	1
+11	12	2026-05-16 22:14:00.434979	1
+12	12	2026-05-16 23:09:40.947449	1
+13	12	2026-05-16 23:14:19.185889	1
+14	12	2026-05-16 23:56:57.5334	1
+15	12	2026-05-17 00:01:29.793216	1
+16	12	2026-05-17 00:15:59.084577	1
+17	12	2026-05-17 00:45:53.372141	1
+18	12	2026-05-17 01:12:32.726338	1
+19	12	2026-05-17 03:41:38.482484	1
+20	12	2026-05-17 04:40:19.429817	1
 \.
 
 
@@ -5618,7 +5725,7 @@ SELECT pg_catalog.setval('public.asignacion_equipo_id_asignacion_seq', 17, true)
 -- Name: auditoria_id_auditoria_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.auditoria_id_auditoria_seq', 150, true);
+SELECT pg_catalog.setval('public.auditoria_id_auditoria_seq', 151, true);
 
 
 --
@@ -5646,7 +5753,7 @@ SELECT pg_catalog.setval('public.criticidad_equipos_id_criticidad_equipo_seq', 3
 -- Name: dispositivo_beacon_id_beacon_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.dispositivo_beacon_id_beacon_seq', 3, true);
+SELECT pg_catalog.setval('public.dispositivo_beacon_id_beacon_seq', 8, true);
 
 
 --
@@ -5660,7 +5767,7 @@ SELECT pg_catalog.setval('public.dispositivo_gps_id_gps_seq', 2, true);
 -- Name: dispositivo_nfc_id_nfc_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.dispositivo_nfc_id_nfc_seq', 11, true);
+SELECT pg_catalog.setval('public.dispositivo_nfc_id_nfc_seq', 12, true);
 
 
 --
@@ -5674,7 +5781,7 @@ SELECT pg_catalog.setval('public.enfermero_id_enfermero_seq', 8, true);
 -- Name: equipo_id_equipo_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.equipo_id_equipo_seq', 20, true);
+SELECT pg_catalog.setval('public.equipo_id_equipo_seq', 21, true);
 
 
 --
@@ -5723,7 +5830,7 @@ SELECT pg_catalog.setval('public.estado_equipos_id_estado_equipo_seq', 5, true);
 -- Name: evento_beacon_id_evento_beacon_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.evento_beacon_id_evento_beacon_seq', 8, true);
+SELECT pg_catalog.setval('public.evento_beacon_id_evento_beacon_seq', 9, true);
 
 
 --
@@ -5737,7 +5844,7 @@ SELECT pg_catalog.setval('public.evento_gps_id_evento_gps_seq', 11, true);
 -- Name: evento_nfc_id_evento_nfc_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.evento_nfc_id_evento_nfc_seq', 7, true);
+SELECT pg_catalog.setval('public.evento_nfc_id_evento_nfc_seq', 20, true);
 
 
 --
@@ -8734,5 +8841,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict YVxyCRnpN6f6CEdWncz1dJz0HgZQd9ekmNAz9CKjC5LQA7z2pydEmklKqQkY5xX
+\unrestrict BuAo9hq1T8QP3a6bHbhfL8X5z9cxY6BOEd9ozQdbkrug4uh1htyzVjoQ1eqCTga
 

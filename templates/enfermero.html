@@ -92,6 +92,26 @@
               {% else %}<div class="empty">Sin movimientos registrados</div>{% endif %}
             </div>
           </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">📋 Mis usos clínicos recientes</span></div>
+            <div class="card-body">
+              {% if mis_usos %}
+              <div class="tl">
+                {% for u in mis_usos[:5] %}
+                <div class="tl-it">
+                  <div class="tl-dot" style="background:var(--purple)"></div>
+                  <div class="tl-t">{{ u.nombre_equipo }}</div>
+                  <div class="tl-s">
+                    <span class="badge b-purple" style="font-size:9px">{{ u.estado_equipo }}</span> {{ u.nombre_area }}<br>
+                    <span class="mono">{{ u.fecha_hora_inicio.strftime('%d/%m %H:%M') if u.fecha_hora_inicio else '—' }}</span>
+                    {% if not u.fecha_hora_fin %}<span class="badge b-green" style="font-size:9px;margin-left:4px">Activo</span>{% endif %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}<div class="empty">Sin usos clínicos registrados</div>{% endif %}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -240,6 +260,12 @@
                   {% for e in todos_equipos %}<option value="{{ e.id_equipo }}">{{ e.codigo_interno }} — {{ e.nombre_equipo }}</option>{% endfor %}
                 </select>
               </div>
+              <div class="fg"><label class="fl">Tipo de procedimiento</label>
+                <select class="fc" name="id_tipo_procedimiento" required>
+                  <option value="">Seleccionar…</option>
+                  {% for t in tipos_proc %}<option value="{{ t.id_tipo_procedimiento }}">{{ t.tipo_procedimiento }}</option>{% endfor %}
+                </select>
+              </div>
               <div class="fg"><label class="fl">Responsable</label><input class="fc" value="{{ session.nombre_completo or session.nombre }}" readonly></div>
               <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">✅ Registrar uso clínico</button>
             </form>
@@ -273,17 +299,41 @@
             </table></div>
           </div>
           <div class="card">
-            <div class="card-hdr"><span class="card-ttl">📋 Usos clínicos del sistema</span></div>
+            <div class="card-hdr"><span class="card-ttl">📋 Mis usos clínicos</span></div>
             <div class="tbl-wrap"><table class="tbl">
-              <thead><tr><th>Equipo</th><th>Persona</th><th>Fecha</th></tr></thead>
+              <thead><tr><th>Equipo</th><th>Área</th><th>Inicio</th><th>Estado</th><th>Acción</th></tr></thead>
+              <tbody>
+                {% for u in mis_usos %}
+                <tr>
+                  <td><strong>{{ u.nombre_equipo }}</strong><br><span class="cod">{{ u.codigo_interno }}</span></td>
+                  <td>{{ u.nombre_area }}</td>
+                  <td><span class="mono">{{ u.fecha_hora_inicio.strftime('%d/%m %H:%M') if u.fecha_hora_inicio else '—' }}</span></td>
+                  <td>{% if not u.fecha_hora_fin %}<span class="badge b-green">Activo</span>{% else %}<span class="badge b-gray">Cerrado<br><span class="mono" style="font-size:10px">{{ u.fecha_hora_fin.strftime('%d/%m %H:%M') }}</span></span>{% endif %}</td>
+                  <td>
+                    {% if not u.fecha_hora_fin %}
+                    <form method="POST" action="{{ url_for('enfermero_cerrar_uso', id_uso=u.id_uso_clinico) }}">
+                      <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Cerrar este uso clínico?')">⏹ Cerrar</button>
+                    </form>
+                    {% else %}—{% endif %}
+                  </td>
+                </tr>
+                {% else %}<tr><td colspan="5" class="empty">Sin usos clínicos registrados</td></tr>{% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">📋 Usos clínicos de mi área</span></div>
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>Equipo</th><th>Persona</th><th>Fecha</th><th>Estado</th></tr></thead>
               <tbody>
                 {% for u in historial_usos %}
                 <tr>
                   <td><strong>{{ u.nombre_equipo }}</strong><br><span class="cod">{{ u.codigo_interno }}</span></td>
                   <td>{{ u.persona }}</td>
-                  <td><span class="mono">{{ u.fecha_uso.strftime('%d/%m %H:%M') if u.fecha_uso else '—' }}</span></td>
+                  <td><span class="mono">{{ u.fecha_hora_inicio.strftime('%d/%m %H:%M') if u.fecha_hora_inicio else '—' }}</span></td>
+                  <td>{% if not u.fecha_hora_fin %}<span class="badge b-green">Activo</span>{% else %}<span class="badge b-gray">Cerrado</span>{% endif %}</td>
                 </tr>
-                {% else %}<tr><td colspan="3" class="empty">Sin historial</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="4" class="empty">Sin usos clínicos en esta área</td></tr>{% endfor %}
               </tbody>
             </table></div>
           </div>

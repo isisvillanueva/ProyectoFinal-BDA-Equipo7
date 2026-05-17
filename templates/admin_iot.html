@@ -493,8 +493,8 @@
                     <form method="POST"
                           action="{{ url_for('admin_iot_delete_beacon', id_beacon=b.id_beacon) }}"
                           style="display:inline"
-                          onsubmit="return confirm('¿Desactivar el beacon {{ b.uuid_beacon[:8] }}...?')">
-                      <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+                          onsubmit="return confirm('¿Eliminar este beacon? Esta acción no se puede deshacer.')">
+                      <button type="submit" class="btn btn-danger btn-sm">🗑️ Eliminar</button>
                     </form>
                   </div>
                 </td>

@@ -24,8 +24,11 @@
       <div class="sbn-sec">Personal</div>
       <button class="sbn-item" data-view="v-personal"     onclick="goTo('v-personal')"><span class="sbn-ic">👥</span>Personal</button>
       <button class="sbn-item" data-view="v-asignaciones" onclick="goTo('v-asignaciones')"><span class="sbn-ic">📌</span>Asignaciones</button>
+      <div class="sbn-sec">Mis acciones</div>
+      <button class="sbn-item" data-view="v-mov-form"     onclick="goTo('v-mov-form')"><span class="sbn-ic">🔄</span>Registrar movimiento</button>
+      <button class="sbn-item" data-view="v-uso-form"     onclick="goTo('v-uso-form')"><span class="sbn-ic">📋</span>Registrar uso clínico</button>
       <div class="sbn-sec">Historial</div>
-      <button class="sbn-item" data-view="v-movimientos"  onclick="goTo('v-movimientos')"><span class="sbn-ic">🔄</span>Movimientos</button>
+      <button class="sbn-item" data-view="v-movimientos"  onclick="goTo('v-movimientos')"><span class="sbn-ic">🔄</span>Movimientos del área</button>
     </nav>
     <div class="sb-foot">
       <div class="sb-uname">{{ session.nombre }}</div>
@@ -118,6 +121,44 @@
               {% else %}<tr><td colspan="6" class="empty">Sin movimientos en el área</td></tr>{% endfor %}
             </tbody>
           </table></div>
+        </div>
+        <div class="two">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🔄 Mis movimientos recientes</span></div>
+            <div class="card-body">
+              {% if mis_movs %}
+              <div class="tl">
+                {% for m in mis_movs[:5] %}
+                <div class="tl-it">
+                  <div class="tl-dot tl-teal"></div>
+                  <div class="tl-t">{{ m.nombre_equipo }}</div>
+                  <div class="tl-s"><span class="badge b-teal" style="font-size:9px">{{ m.tipo_movimiento }}</span> {{ m.origen }} → {{ m.destino }}<br><span class="mono">{{ m.fecha_hora_movimiento.strftime('%d/%m %H:%M') if m.fecha_hora_movimiento else '—' }}</span></div>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}<div class="empty">Sin movimientos registrados</div>{% endif %}
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">📋 Mis usos clínicos recientes</span></div>
+            <div class="card-body">
+              {% if mis_usos %}
+              <div class="tl">
+                {% for u in mis_usos[:5] %}
+                <div class="tl-it">
+                  <div class="tl-dot" style="background:var(--purple)"></div>
+                  <div class="tl-t">{{ u.nombre_equipo }}</div>
+                  <div class="tl-s">
+                    <span class="badge b-purple" style="font-size:9px">{{ u.estado_equipo }}</span> {{ u.nombre_area }}<br>
+                    <span class="mono">{{ u.fecha_hora_inicio.strftime('%d/%m %H:%M') if u.fecha_hora_inicio else '—' }}</span>
+                    {% if not u.fecha_hora_fin %}<span class="badge b-green" style="font-size:9px;margin-left:4px">Activo</span>{% endif %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}<div class="empty">Sin usos clínicos registrados</div>{% endif %}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -331,6 +372,73 @@
         </div>
       </section>
 
+      <!-- ══ REGISTRAR MOVIMIENTO ══ -->
+      <section id="v-mov-form" class="view">
+        <div class="phdr"><div><div class="ptitle">Registrar <em>Movimiento</em></div></div></div>
+        <div class="card" style="max-width:520px">
+          <div class="card-hdr"><span class="card-ttl">🔄 Nuevo movimiento de equipo</span></div>
+          <div class="card-body">
+            <form method="POST" action="{{ url_for('enfermero_mov') }}">
+              <div class="fg"><label class="fl">Equipo</label>
+                <select class="fc" name="id_equipo" required>
+                  <option value="">Seleccionar equipo…</option>
+                  {% for e in todos_equipos %}<option value="{{ e.id_equipo }}">{{ e.codigo_interno }} — {{ e.nombre_equipo }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Tipo de movimiento</label>
+                <select class="fc" name="id_tipo_movimiento" required>
+                  <option value="">Seleccionar tipo…</option>
+                  {% for t in tipos_mov %}<option value="{{ t.id_tipo_movimiento }}">{{ t.tipo_movimiento }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="frow">
+                <div class="fg"><label class="fl">Ubicación origen</label>
+                  <select class="fc" name="id_ubicacion_origen" required>
+                    <option value="">Seleccionar…</option>
+                    {% for u in ubicaciones %}<option value="{{ u.id_ubicacion }}">{{ u.nombre_ubicacion }}</option>{% endfor %}
+                  </select>
+                </div>
+                <div class="fg"><label class="fl">Ubicación destino</label>
+                  <select class="fc" name="id_ubicacion_destino" required>
+                    <option value="">Seleccionar…</option>
+                    {% for u in ubicaciones %}<option value="{{ u.id_ubicacion }}">{{ u.nombre_ubicacion }}</option>{% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div class="fg"><label class="fl">Observación</label><input class="fc" name="observacion" placeholder="Motivo del movimiento…"></div>
+              <div class="fg"><label class="fl">Responsable</label><input class="fc" value="{{ session.nombre_completo or session.nombre }}" readonly></div>
+              <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">🔄 Registrar movimiento</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ REGISTRAR USO CLÍNICO ══ -->
+      <section id="v-uso-form" class="view">
+        <div class="phdr"><div><div class="ptitle">Registrar <em>Uso Clínico</em></div></div></div>
+        <div class="card" style="max-width:520px">
+          <div class="card-hdr"><span class="card-ttl">📋 Nuevo registro de uso</span></div>
+          <div class="card-body">
+            <form method="POST" action="{{ url_for('enfermero_uso') }}">
+              <div class="fg"><label class="fl">Equipo</label>
+                <select class="fc" name="id_equipo" required>
+                  <option value="">Seleccionar equipo…</option>
+                  {% for e in todos_equipos %}<option value="{{ e.id_equipo }}">{{ e.codigo_interno }} — {{ e.nombre_equipo }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Tipo de procedimiento</label>
+                <select class="fc" name="id_tipo_procedimiento" required>
+                  <option value="">Seleccionar…</option>
+                  {% for t in tipos_proc %}<option value="{{ t.id_tipo_procedimiento }}">{{ t.tipo_procedimiento }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Responsable</label><input class="fc" value="{{ session.nombre_completo or session.nombre }}" readonly></div>
+              <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">✅ Registrar uso clínico</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
       <!-- ══ MOVIMIENTOS ══ -->
       <section id="v-movimientos" class="view">
         <div class="phdr"><div><div class="ptitle">Movimientos <em>del Área</em></div><div class="psub">{{ movimientos|length }} movimientos relacionados con el área</div></div></div>
@@ -348,6 +456,29 @@
                 <td><span class="mono">{{ m.fecha_hora_movimiento.strftime('%d/%m %H:%M') if m.fecha_hora_movimiento else '—' }}</span></td>
               </tr>
               {% else %}<tr><td colspan="7" class="empty">Sin movimientos en el área</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">📋 Mis usos clínicos</span></div>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Equipo</th><th>Área</th><th>Inicio</th><th>Estado</th><th>Acción</th></tr></thead>
+            <tbody>
+              {% for u in mis_usos %}
+              <tr>
+                <td><strong>{{ u.nombre_equipo }}</strong><br><span class="cod">{{ u.codigo_interno }}</span></td>
+                <td>{{ u.nombre_area }}</td>
+                <td><span class="mono">{{ u.fecha_hora_inicio.strftime('%d/%m %H:%M') if u.fecha_hora_inicio else '—' }}</span></td>
+                <td>{% if not u.fecha_hora_fin %}<span class="badge b-green">Activo</span>{% else %}<span class="badge b-gray">Cerrado<br><span class="mono" style="font-size:10px">{{ u.fecha_hora_fin.strftime('%d/%m %H:%M') }}</span></span>{% endif %}</td>
+                <td>
+                  {% if not u.fecha_hora_fin %}
+                  <form method="POST" action="{{ url_for('enfermero_cerrar_uso', id_uso=u.id_uso_clinico) }}">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Cerrar este uso clínico?')">⏹ Cerrar</button>
+                  </form>
+                  {% else %}—{% endif %}
+                </td>
+              </tr>
+              {% else %}<tr><td colspan="5" class="empty">Sin usos clínicos registrados</td></tr>{% endfor %}
             </tbody>
           </table></div>
         </div>

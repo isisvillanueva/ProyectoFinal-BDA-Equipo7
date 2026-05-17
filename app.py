@@ -5,9 +5,20 @@ from psycopg2.extras import RealDictCursor
 from functools import wraps
 from pymongo import MongoClient
 import datetime
+import threading
+from itsdangerous import URLSafeSerializer, BadSignature
 
 app = Flask(__name__)
 app.secret_key = "hospitaliot_equipo7_secret"
+
+# Token compartido con beacon_scanner.py
+BEACON_SCRIPT_TOKEN = "beacon_scanner_token_hospital7"
+# Estado en memoria del último heartbeat recibido desde beacon_scanner.py
+_beacon_state: dict = {
+    "activo": False, "id_beacon": None,
+    "zona": None, "rssi": None, "ts": None,
+}
+_beacon_lock = threading.Lock()
 
 DB_CONFIG = dict(
     host="127.0.0.1",
@@ -444,6 +455,13 @@ def role_required(*roles):
             return f(*a, **kw)
         return inner
     return dec
+
+
+def _dashboard_enfermero():
+    """Redirige al dashboard correcto según si el usuario es responsable o enfermero."""
+    if session.get("rol") == "responsable":
+        return redirect(url_for("responsable_v"))
+    return redirect(url_for("enfermero_v"))
 
 
 # Helpers de rol
@@ -1827,11 +1845,18 @@ def medico_v():
             cur.execute("SELECT * FROM v_equipos_activos ORDER BY nombre_equipo")
             todos_equipos = to_dicts(cur.fetchall())
 
+            cur.execute("""
+                SELECT id_tipo_procedimiento, tipo_procedimiento
+                FROM tipo_procedimiento ORDER BY tipo_procedimiento
+            """)
+            tipos_proc = to_dicts(cur.fetchall())
+
     return render_template(
         "medico.html",
         perfil=perfil, disponibles=disponibles,
         mis_asignaciones=mis_asignaciones,
         mis_usos=mis_usos, todos_equipos=todos_equipos,
+        tipos_proc=tipos_proc,
         criticos_no_disponibles=criticos_no_disponibles,
         alta_demanda=alta_demanda,
         disponibilidad_area=disponibilidad_area,
@@ -1872,9 +1897,7 @@ def medico_uso():
                 turno_row = cur.fetchone()
                 id_turno = turno_row["id_turno"] if turno_row else 1
 
-                cur.execute("SELECT id_tipo_procedimiento FROM tipo_procedimiento ORDER BY id_tipo_procedimiento LIMIT 1")
-                proc_row = cur.fetchone()
-                id_proc = proc_row["id_tipo_procedimiento"] if proc_row else 1
+                id_proc = int(request.form.get("id_tipo_procedimiento", 1))
 
                 set_audit_context(cur, "web_medico")
                 cur.execute(
@@ -2222,7 +2245,7 @@ def biomedico_eliminar_mant(id_mant):
 
 @app.route("/enfermero")
 @login_required
-@role_required("enfermero", "admin")
+@role_required("enfermero", "responsable", "admin")
 def enfermero_v():
     ip = session["id_persona"]
     with get_db() as c:
@@ -2291,21 +2314,30 @@ def enfermero_v():
             """, (ip,))
             mis_movs = to_dicts(cur.fetchall())
 
-            # Historial de usos clínicos recientes
-            # SCHEMA FIXES: #15 id_persona_responsable_uso, #16 fecha_hora_inicio
-            cur.execute("""
-                SELECT u.id_uso_clinico,
-                       e.nombre_equipo,
-                       e.codigo_interno,
-                       p.nombre_persona || ' ' || p.apellido_persona AS persona,
-                       u.fecha_hora_inicio AS fecha_uso
-                FROM uso_clinico_equipo u
-                JOIN equipo e  ON e.id_equipo  = u.id_equipo
-                JOIN persona p ON p.id_persona = u.id_persona_responsable_uso
-                ORDER BY u.fecha_hora_inicio DESC
-                LIMIT 20
-            """)
+            # Usos clínicos del área del enfermero
+            if id_area_enf:
+                cur.execute("""
+                    SELECT * FROM v_usos_clinicos_area
+                    WHERE id_area = %s
+                    ORDER BY fecha_hora_inicio DESC
+                    LIMIT 20
+                """, (id_area_enf,))
+            else:
+                cur.execute("""
+                    SELECT * FROM v_usos_clinicos_area
+                    ORDER BY fecha_hora_inicio DESC
+                    LIMIT 20
+                """)
             historial_usos = to_dicts(cur.fetchall())
+
+            # Mis usos clínicos (filtrado por enfermero en sesión)
+            cur.execute("""
+                SELECT * FROM v_mis_usos_clinicos
+                WHERE id_persona_responsable_uso = %s
+                ORDER BY fecha_hora_inicio DESC
+                LIMIT 20
+            """, (ip,))
+            mis_usos = to_dicts(cur.fetchall())
 
             # Reportes de gráficas — leídos desde MongoDB
             _mg = get_mongo_db()
@@ -2339,15 +2371,23 @@ def enfermero_v():
             """)
             personas = to_dicts(cur.fetchall())
 
+            cur.execute("""
+                SELECT id_tipo_procedimiento, tipo_procedimiento
+                FROM tipo_procedimiento ORDER BY tipo_procedimiento
+            """)
+            tipos_proc = to_dicts(cur.fetchall())
+
     return render_template(
         "enfermero.html",
         equipos=equipos, equipos_area=equipos_area,
         mi_area_enf=nombre_area_enf,
         mis_movs=mis_movs,
+        mis_usos=mis_usos,
         historial_usos=historial_usos,
         todos_equipos=todos_equipos,
         tipos_mov=tipos_mov, ubicaciones=ubicaciones,
         personas=personas,
+        tipos_proc=tipos_proc,
         rpt_movs_area=rpt_movs_area,
         rpt_freq_tipo_mov=rpt_freq_tipo_mov,
         rpt_estados_area=rpt_estados_area
@@ -2356,7 +2396,7 @@ def enfermero_v():
 
 @app.route("/enfermero/movimiento", methods=["POST"])
 @login_required
-@role_required("enfermero", "admin")
+@role_required("enfermero", "responsable", "admin")
 def enfermero_mov():
     """
     SP real: sp_registrar_movimiento_equipo(
@@ -2371,11 +2411,11 @@ def enfermero_mov():
 
     if not all([f.get("id_equipo"), f.get("id_tipo_movimiento"), id_origen, id_destino]):
         flash("Completa todos los campos.", "error")
-        return redirect(url_for("enfermero_v"))
+        return _dashboard_enfermero()
 
     if id_origen == id_destino:
         flash("Origen y destino deben ser distintos.", "error")
-        return redirect(url_for("enfermero_v"))
+        return _dashboard_enfermero()
 
     try:
         with get_db() as c:
@@ -2393,7 +2433,7 @@ def enfermero_mov():
                         "del equipo en el sistema. Recarga la página para actualizar.",
                         "error",
                     )
-                    return redirect(url_for("enfermero_v"))
+                    return _dashboard_enfermero()
 
                 set_audit_context(cur, "web_enfermero")
                 cur.execute(
@@ -2414,12 +2454,12 @@ def enfermero_mov():
         flash("Movimiento registrado.", "success")
     except Exception as e:
         flash(friendly_db_error(e), "error")
-    return redirect(url_for("enfermero_v"))
+    return _dashboard_enfermero()
 
 
 @app.route("/enfermero/movimiento/<int:id_mov>/eliminar", methods=["POST"])
 @login_required
-@role_required("enfermero", "admin")
+@role_required("enfermero", "responsable", "admin")
 def enfermero_eliminar_mov(id_mov):
     """SCHEMA FIX #8: id_persona_responsable_movimiento."""
     try:
@@ -2434,18 +2474,18 @@ def enfermero_eliminar_mov(id_mov):
         flash("Movimiento eliminado.", "success")
     except Exception as e:
         flash(f"Error: {e}", "error")
-    return redirect(url_for("enfermero_v"))
+    return _dashboard_enfermero()
 
 
 @app.route("/enfermero/uso", methods=["POST"])
 @login_required
-@role_required("enfermero", "admin")
+@role_required("enfermero", "responsable", "admin")
 def enfermero_uso():
     """Mismo flujo que medico_uso."""
     id_eq = request.form.get("id_equipo", "").strip()
     if not id_eq:
         flash("Selecciona un equipo.", "error")
-        return redirect(url_for("enfermero_v"))
+        return _dashboard_enfermero()
     try:
         with get_db() as c:
             with c.cursor() as cur:
@@ -2463,9 +2503,7 @@ def enfermero_uso():
                 turno_row = cur.fetchone()
                 id_turno = turno_row["id_turno"] if turno_row else 1
 
-                cur.execute("SELECT id_tipo_procedimiento FROM tipo_procedimiento ORDER BY id_tipo_procedimiento LIMIT 1")
-                proc_row = cur.fetchone()
-                id_proc = proc_row["id_tipo_procedimiento"] if proc_row else 1
+                id_proc = int(request.form.get("id_tipo_procedimiento", 1))
 
                 set_audit_context(cur, "web_enfermero")
                 cur.execute(
@@ -2485,8 +2523,26 @@ def enfermero_uso():
         flash("Uso registrado.", "success")
     except Exception as e:
         flash(friendly_db_error(e), "error")
-    return redirect(url_for("enfermero_v"))
+    return _dashboard_enfermero()
 
+
+@app.route("/enfermero/uso/<int:id_uso>/cerrar", methods=["POST"])
+@login_required
+@role_required("enfermero", "responsable", "admin")
+def enfermero_cerrar_uso(id_uso):
+    try:
+        with get_db() as c:
+            with c.cursor() as cur:
+                set_audit_context(cur, "web_enfermero")
+                cur.execute(
+                    "CALL sp_cerrar_uso_clinico(%s,%s,NULL,%s)",
+                    (session["id_usuario"], id_uso, "web_enfermero")
+                )
+            c.commit()
+        flash("Uso clínico cerrado correctamente.", "success")
+    except Exception as e:
+        flash(friendly_db_error(e), "error")
+    return _dashboard_enfermero()
 
 
 # RESPONSABLE DE ÁREA
@@ -2628,6 +2684,63 @@ def responsable_v():
             """, (id_area,))
             mants_proximos = to_dicts(cur.fetchall())
 
+            # Mis movimientos
+            cur.execute("""
+                SELECT m.id_movimiento, e.nombre_equipo,
+                       tm.tipo_movimiento,
+                       uo.nombre_ubicacion AS origen,
+                       ud.nombre_ubicacion AS destino,
+                       m.fecha_hora_movimiento, m.observacion_movimiento
+                FROM movimiento m
+                JOIN equipo e ON e.id_equipo = m.id_equipo
+                JOIN tipo_movimientos tm ON tm.id_tipo_movimiento = m.id_tipo_movimiento
+                JOIN ubicacion_especifica uo ON uo.id_ubicacion = m.id_ubicacion_origen
+                JOIN ubicacion_especifica ud ON ud.id_ubicacion = m.id_ubicacion_destino
+                WHERE m.id_persona_responsable_movimiento = %s
+                ORDER BY m.fecha_hora_movimiento DESC
+                LIMIT 20
+            """, (ip,))
+            mis_movs = to_dicts(cur.fetchall())
+
+            # Mis usos clínicos
+            cur.execute("""
+                SELECT * FROM v_mis_usos_clinicos
+                WHERE id_persona_responsable_uso = %s
+                ORDER BY fecha_hora_inicio DESC
+                LIMIT 20
+            """, (ip,))
+            mis_usos = to_dicts(cur.fetchall())
+
+            cur.execute("""
+                SELECT id_equipo, codigo_interno, nombre_equipo
+                FROM equipo WHERE activo_equipo = TRUE ORDER BY nombre_equipo
+            """)
+            todos_equipos = to_dicts(cur.fetchall())
+
+            cur.execute("""
+                SELECT id_tipo_movimiento, tipo_movimiento
+                FROM tipo_movimientos ORDER BY tipo_movimiento
+            """)
+            tipos_mov = to_dicts(cur.fetchall())
+
+            cur.execute("""
+                SELECT id_ubicacion, nombre_ubicacion
+                FROM ubicacion_especifica ORDER BY nombre_ubicacion
+            """)
+            ubicaciones = to_dicts(cur.fetchall())
+
+            cur.execute("""
+                SELECT id_persona, nombre_persona || ' ' || apellido_persona AS nombre
+                FROM persona ORDER BY apellido_persona, nombre_persona
+            """)
+            personas = to_dicts(cur.fetchall())
+
+            cur.execute("""
+                SELECT id_tipo_procedimiento, tipo_procedimiento
+                FROM tipo_procedimiento ORDER BY tipo_procedimiento
+            """)
+            tipos_proc = to_dicts(cur.fetchall())
+
             # Reportes de gráficas — leídos desde MongoDB
             _mg = get_mongo_db()
             rpt_estados_area      = mg_rpt_estados_area(_mg, id_area)
@@ -2641,6 +2754,13 @@ def responsable_v():
         equipos_area=equipos_area,
         asignaciones=asignaciones,
         movimientos=movimientos,
+        mis_movs=mis_movs,
+        mis_usos=mis_usos,
+        todos_equipos=todos_equipos,
+        tipos_mov=tipos_mov,
+        ubicaciones=ubicaciones,
+        personas=personas,
+        tipos_proc=tipos_proc,
         personal=personal,
         responsables_activos=responsables_activos,
         estados_cat=estados_cat,
@@ -2938,20 +3058,19 @@ def admin_iot_add_beacon():
     try:
         with get_db() as c:
             with c.cursor() as cur:
-                set_audit_context(cur, "web_admin")
                 cur.execute(
-                    "INSERT INTO dispositivo_beacon (uuid_beacon, major_beacon, minor_beacon, activo_beacon, id_zona_beacon)"
-                    " VALUES (%s,%s,%s,%s,%s)",
+                    "CALL sp_registrar_beacon(%s,%s,%s,%s,%s,NULL,%s)",
                     (
+                        session["id_usuario"],
                         uuid_beacon,
                         int(f.get("major_beacon", 0)),
                         int(f.get("minor_beacon", 0)),
-                        f.get("activo_beacon") == "on",
                         int(f.get("id_zona_beacon", 0)),
+                        "web_admin",
                     )
                 )
             c.commit()
-        flash("Beacon registrado en el inventario IoT.", "success")
+        flash("Beacon registrado correctamente.", "success")
     except Exception as e:
         flash(f"Error al registrar beacon: {friendly_db_error(e)}", "error")
     return redirect(url_for("admin_iot"))
@@ -2976,6 +3095,32 @@ def admin_iot_toggle_beacon(id_beacon):
     return redirect(url_for("admin_iot"))
 
 
+@app.route("/admin/iot/beacon/<int:id_beacon>/editar", methods=["POST"])
+@login_required
+@role_required("admin")
+def admin_iot_edit_beacon(id_beacon):
+    f = request.form
+    try:
+        with get_db() as c:
+            with c.cursor() as cur:
+                set_audit_context(cur, "web_admin")
+                cur.execute(
+                    "UPDATE dispositivo_beacon SET uuid_beacon=%s, major_beacon=%s, minor_beacon=%s, id_zona_beacon=%s WHERE id_beacon=%s",
+                    (
+                        f.get("uuid_beacon", "").strip().upper(),
+                        int(f.get("major_beacon", 0)),
+                        int(f.get("minor_beacon", 0)),
+                        int(f.get("id_zona_beacon", 0)),
+                        id_beacon,
+                    )
+                )
+            c.commit()
+        flash("Beacon actualizado correctamente.", "success")
+    except Exception as e:
+        flash(f"Error al editar beacon: {friendly_db_error(e)}", "error")
+    return redirect(url_for("admin_iot"))
+
+
 @app.route("/admin/iot/beacon/<int:id_beacon>/eliminar", methods=["POST"])
 @login_required
 @role_required("admin")
@@ -2984,14 +3129,11 @@ def admin_iot_delete_beacon(id_beacon):
         with get_db() as c:
             with c.cursor() as cur:
                 set_audit_context(cur, "web_admin")
-                cur.execute(
-                    "UPDATE dispositivo_beacon SET activo_beacon = FALSE WHERE id_beacon = %s",
-                    (id_beacon,)
-                )
+                cur.execute("DELETE FROM dispositivo_beacon WHERE id_beacon = %s", (id_beacon,))
             c.commit()
-        flash("Beacon desactivado del inventario IoT.", "success")
+        flash("Beacon eliminado del inventario IoT.", "success")
     except Exception as e:
-        flash(f"Error al desactivar beacon: {friendly_db_error(e)}", "error")
+        flash(f"Error al eliminar beacon: {friendly_db_error(e)}", "error")
     return redirect(url_for("admin_iot"))
 
 
@@ -3079,6 +3221,119 @@ def admin_iot_update_uid_nfc(id_nfc):
     except Exception as e:
         flash(f"Error al actualizar UID: {friendly_db_error(e)}", "error")
     return redirect(url_for("admin_iot"))
+
+
+def _mobile_token(id_usuario):
+    return URLSafeSerializer(app.secret_key, salt="mobile").dumps(id_usuario)
+
+def _verify_mobile_token(token):
+    try:
+        return URLSafeSerializer(app.secret_key, salt="mobile").loads(token)
+    except BadSignature:
+        return None
+
+
+@app.route("/api/mobile/login", methods=["POST"])
+def api_mobile_login():
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = (data.get("password") or "").strip()
+    if not username or not password:
+        return jsonify(ok=False, mensaje="Usuario y contraseña requeridos"), 400
+    try:
+        with get_db() as c:
+            with c.cursor() as cur:
+                cur.execute("""
+                    SELECT u.id_usuario, u.contrasenia, p.nombre_persona, p.apellido_persona
+                    FROM usuario u
+                    JOIN persona p ON p.id_persona = u.id_persona
+                    WHERE u.username = %s AND u.activo_usuario = TRUE
+                """, (username,))
+                user = cur.fetchone()
+        if not user or user["contrasenia"] != password:
+            return jsonify(ok=False, mensaje="Credenciales incorrectas"), 401
+        token = _mobile_token(user["id_usuario"])
+        return jsonify(ok=True, token=token,
+                       nombre=f"{user['nombre_persona']} {user['apellido_persona']}")
+    except Exception as e:
+        return jsonify(ok=False, mensaje=str(e)), 500
+
+
+@app.route("/api/iot/escaneo", methods=["POST"])
+def api_iot_escaneo():
+    data = request.get_json(silent=True) or {}
+    token       = data.get("token", "")
+    uid_nfc     = (data.get("uid_nfc") or "").strip().upper()
+    uuid_beacon = (data.get("uuid_beacon") or "").strip().upper()
+    major       = data.get("major", 0)
+    minor       = data.get("minor", 0)
+
+    id_usuario = _verify_mobile_token(token)
+    if not id_usuario:
+        return jsonify(ok=False, mensaje="Token inválido"), 401
+    if not uid_nfc:
+        return jsonify(ok=False, mensaje="UID NFC requerido"), 400
+
+    try:
+        with get_db() as c:
+            with c.cursor() as cur:
+                # Buscar equipo por NFC
+                cur.execute("""
+                    SELECT dn.id_nfc, dn.id_equipo,
+                           e.nombre_equipo, e.codigo_interno,
+                           ee.estado_equipo,
+                           ue.nombre_ubicacion, ar.nombre_area
+                    FROM dispositivo_nfc dn
+                    JOIN equipo e ON e.id_equipo = dn.id_equipo
+                    JOIN estado_equipos ee ON ee.id_estado_equipo = e.id_estado_equipo
+                    JOIN ubicacion_especifica ue ON ue.id_ubicacion = e.id_ubicacion_administrativa_actual
+                    JOIN area_registro ar ON ar.id_area = ue.id_area
+                    WHERE dn.codigo_uid_nfc = %s AND dn.activo_nfc = TRUE
+                """, (uid_nfc,))
+                tag = cur.fetchone()
+                if not tag:
+                    return jsonify(ok=False, mensaje="Tag NFC no reconocido o inactivo"), 404
+
+                # Registrar evento NFC (tipo 1 = Lectura)
+                cur.execute("""
+                    INSERT INTO evento_nfc (id_nfc, id_tipo_evento_nfc, fecha_hora_evento)
+                    VALUES (%s, 1, NOW()) RETURNING id_evento_nfc
+                """, (tag["id_nfc"],))
+                id_evento_nfc = cur.fetchone()["id_evento_nfc"]
+
+                # Buscar beacon y registrar evento beacon si se proporcionó
+                id_evento_beacon = None
+                area_beacon = None
+                if uuid_beacon:
+                    cur.execute("""
+                        SELECT db.id_beacon, zb.nombre_zona_beacon
+                        FROM dispositivo_beacon db
+                        JOIN zona_beacon zb ON zb.id_zona_beacon = db.id_zona_beacon
+                        WHERE db.uuid_beacon = %s
+                          AND db.major_beacon = %s
+                          AND db.minor_beacon = %s
+                          AND db.activo_beacon = TRUE
+                    """, (uuid_beacon, int(major), int(minor)))
+                    beacon = cur.fetchone()
+                    if beacon:
+                        cur.execute("""
+                            INSERT INTO evento_beacon (id_beacon, id_equipo, fecha_hora_evento, id_tipo_evento_beacon)
+                            VALUES (%s, %s, NOW(), 1) RETURNING id_evento_beacon
+                        """, (beacon["id_beacon"], tag["id_equipo"]))
+                        id_evento_beacon = cur.fetchone()["id_evento_beacon"]
+                        area_beacon = beacon["nombre_zona_beacon"]
+
+            c.commit()
+
+        return jsonify(
+            ok=True,
+            id_evento_nfc=id_evento_nfc,
+            id_evento_beacon=id_evento_beacon,
+            equipo=dict(tag),
+            area_detectada=area_beacon
+        )
+    except Exception as e:
+        return jsonify(ok=False, mensaje=str(e)), 500
 
 
 @app.route("/api/nfc/evento", methods=["POST"])
@@ -3318,55 +3573,8 @@ def admin_crear_equipo():
     try:
         with get_db() as c:
             with c.cursor() as cur:
-                # ── Resolver id_modelo desde marca + nombre_modelo si viene ─
-                id_modelo = f.get("id_modelo", "").strip()
-                if not id_modelo:
-                    # El modal simplificado no expone id_modelo directamente;
-                    # se usa el primer modelo disponible como fallback.
-                    cur.execute("SELECT id_modelo FROM modelo_equipo LIMIT 1")
-                    row = cur.fetchone()
-                    id_modelo = row["id_modelo"] if row else 1
-
-                # ── Resolver id_tipo_equipo ──────────────────────────────────
-                id_tipo = f.get("id_tipo_equipo", "").strip()
-                if not id_tipo:
-                    cur.execute("SELECT id_tipo_equipo FROM tipo_equipos LIMIT 1")
-                    row = cur.fetchone()
-                    id_tipo = row["id_tipo_equipo"] if row else 1
-
-                # ── Resolver id_criticidad desde texto ───────────────────────
-                id_crit = f.get("id_criticidad_equipo", "").strip()
-                if not id_crit:
-                    nombre_crit = f.get("criticidad_equipo", "Media")
-                    cur.execute(
-                        "SELECT id_criticidad_equipo FROM criticidad_equipos "
-                        "WHERE criticidad_equipo = %s LIMIT 1",
-                        (nombre_crit,)
-                    )
-                    row = cur.fetchone()
-                    id_crit = row["id_criticidad_equipo"] if row else 1
-
-                # ── Resolver id_estado desde texto ───────────────────────────
-                id_estado = f.get("id_estado_equipo", "").strip()
-                if not id_estado:
-                    nombre_est = f.get("estado_equipo", "Disponible")
-                    cur.execute(
-                        "SELECT id_estado_equipo FROM estado_equipos "
-                        "WHERE estado_equipo = %s LIMIT 1",
-                        (nombre_est,)
-                    )
-                    row = cur.fetchone()
-                    id_estado = row["id_estado_equipo"] if row else 1
-
-                # ── Resolver id_ubicacion (primera disponible si no se envía) ─
-                id_ubic = f.get("id_ubicacion", "").strip()
-                if not id_ubic:
-                    cur.execute("SELECT id_ubicacion FROM ubicacion_especifica LIMIT 1")
-                    row = cur.fetchone()
-                    id_ubic = row["id_ubicacion"] if row else 1
-
-                num_serie2 = f.get("numero_serie", "").strip() or None
-                cod_nfc2   = f.get("codigo_uid_nfc", "").strip() or None
+                num_serie = f.get("numero_serie", "").strip() or None
+                cod_nfc   = f.get("codigo_uid_nfc", "").strip().upper() or None
                 set_audit_context(cur, "web_admin")
                 cur.execute(
                     "CALL sp_registrar_equipo(%s,%s,%s,%s,%s,%s,%s,%s,%s,NULL,%s)",
@@ -3374,12 +3582,12 @@ def admin_crear_equipo():
                         session["id_usuario"],
                         f.get("codigo_interno", "").strip(),
                         f.get("nombre_equipo", "").strip(),
-                        int(id_modelo),
-                        num_serie2,
-                        int(id_tipo),
-                        int(id_crit),
-                        int(id_ubic),
-                        cod_nfc2,
+                        int(f["id_modelo"]),
+                        num_serie,
+                        int(f["id_tipo_equipo"]),
+                        int(f["id_criticidad_equipo"]),
+                        int(f["id_ubicacion"]),
+                        cod_nfc,
                         "web_admin",
                     )
                 )
@@ -3887,6 +4095,181 @@ def admin_toggle_usuario_alias(id):
     except Exception as e:
         flash(f"Error: {friendly_db_error(e)}", "error")
     return redirect(url_for("admin_v") + "#v-usuarios")
+
+
+# ── Beacon heartbeat (llamado por beacon_scanner.py cada ~10 s) ────────────
+@app.route("/api/beacon/heartbeat", methods=["POST"])
+def api_beacon_heartbeat():
+    data = request.get_json(silent=True) or {}
+    if data.get("token") != BEACON_SCRIPT_TOKEN:
+        return jsonify(ok=False, mensaje="Token inválido"), 401
+
+    uuid_beacon = (data.get("uuid_beacon") or "").strip().upper()
+    major       = data.get("major", 0)
+    minor       = data.get("minor", 0)
+    activo      = bool(data.get("activo", False))
+    rssi        = data.get("rssi")
+
+    id_beacon = None
+    zona      = None
+
+    if activo and uuid_beacon:
+        try:
+            with get_db() as c:
+                with c.cursor() as cur:
+                    cur.execute("""
+                        SELECT db.id_beacon, zb.nombre_zona_beacon
+                        FROM dispositivo_beacon db
+                        JOIN zona_beacon zb ON zb.id_zona_beacon = db.id_zona_beacon
+                        WHERE db.uuid_beacon = %s
+                          AND db.major_beacon = %s
+                          AND db.minor_beacon = %s
+                          AND db.activo_beacon = TRUE
+                    """, (uuid_beacon, int(major), int(minor)))
+                    row = cur.fetchone()
+                    if row:
+                        id_beacon = row["id_beacon"]
+                        zona      = row["nombre_zona_beacon"]
+        except Exception:
+            pass
+
+    with _beacon_lock:
+        _beacon_state["activo"]    = activo and (id_beacon is not None)
+        _beacon_state["id_beacon"] = id_beacon
+        _beacon_state["zona"]      = zona
+        _beacon_state["rssi"]      = rssi
+        _beacon_state["ts"]        = datetime.datetime.now()
+
+    return jsonify(ok=True)
+
+
+# ── Estado del beacon (consultado por la página /nfc-scan) ──────────────────
+@app.route("/api/beacon/estado")
+@login_required
+def api_beacon_estado():
+    with _beacon_lock:
+        state = dict(_beacon_state)
+
+    segundos_ago = None
+    activo = state["activo"]
+    if state["ts"]:
+        segundos_ago = int((datetime.datetime.now() - state["ts"]).total_seconds())
+        if segundos_ago > 30:
+            activo = False
+
+    return jsonify(
+        activo       = activo,
+        zona         = state["zona"],
+        rssi         = state["rssi"],
+        segundos_ago = segundos_ago,
+    )
+
+
+# ── Login dedicado para flujo NFC ───────────────────────────────────────────
+@app.route("/nfc-login", methods=["GET", "POST"])
+def nfc_login_page():
+    if request.method == "GET":
+        if "id_usuario" in session:
+            return redirect(url_for("nfc_scan_page"))
+        return render_template("nfc_login.html", error=None)
+
+    username = (request.form.get("username") or "").strip()
+    password = (request.form.get("password") or "").strip()
+    if not username or not password:
+        return render_template("nfc_login.html", error="Ingresa usuario y contraseña.")
+
+    try:
+        with get_db() as c:
+            with c.cursor() as cur:
+                cur.execute("""
+                    SELECT u.id_usuario, u.id_persona, u.contrasenia,
+                           p.nombre_persona, p.apellido_persona
+                    FROM usuario u
+                    JOIN persona p ON p.id_persona = u.id_persona
+                    WHERE u.username = %s AND u.activo_usuario = TRUE
+                """, (username,))
+                user = cur.fetchone()
+        if not user or user["contrasenia"] != password:
+            return render_template("nfc_login.html", error="Credenciales incorrectas.")
+        session["id_usuario"]      = user["id_usuario"]
+        session["id_persona"]      = user["id_persona"]
+        session["nombre"]          = user["nombre_persona"]
+        session["nombre_completo"] = user["nombre_persona"] + " " + user["apellido_persona"]
+        return redirect(url_for("nfc_scan_page"))
+    except Exception as e:
+        return render_template("nfc_login.html", error=str(e))
+
+
+# ── Página NFC para celular ──────────────────────────────────────────────────
+@app.route("/nfc-scan")
+@login_required
+def nfc_scan_page():
+    return render_template("nfc_scan.html")
+
+
+# ── Escaneo NFC desde web: crea evento_nfc + evento_beacon ──────────────────
+@app.route("/api/nfc/movil", methods=["POST"])
+@login_required
+def api_nfc_movil():
+    data    = request.get_json(silent=True) or {}
+    uid_nfc = (data.get("uid_nfc") or "").strip().upper()
+
+    if not uid_nfc:
+        return jsonify(ok=False, mensaje="UID NFC requerido"), 400
+
+    with _beacon_lock:
+        beacon_activo = _beacon_state["activo"]
+        id_beacon     = _beacon_state["id_beacon"]
+        zona          = _beacon_state["zona"]
+        beacon_ts     = _beacon_state["ts"]
+
+    if beacon_ts and (datetime.datetime.now() - beacon_ts).total_seconds() > 30:
+        beacon_activo = False
+
+    try:
+        with get_db() as c:
+            with c.cursor() as cur:
+                cur.execute("""
+                    SELECT dn.id_nfc, dn.id_equipo,
+                           e.nombre_equipo, e.codigo_interno,
+                           ee.estado_equipo
+                    FROM dispositivo_nfc dn
+                    JOIN equipo e ON e.id_equipo = dn.id_equipo
+                    JOIN estado_equipos ee ON ee.id_estado_equipo = e.id_estado_equipo
+                    WHERE dn.codigo_uid_nfc = %s AND dn.activo_nfc = TRUE
+                """, (uid_nfc,))
+                tag = cur.fetchone()
+                if not tag:
+                    return jsonify(ok=False, mensaje="Tag NFC no reconocido o inactivo"), 404
+
+                cur.execute("""
+                    INSERT INTO evento_nfc (id_nfc, id_tipo_evento_nfc, fecha_hora_evento)
+                    VALUES (%s, 1, NOW()) RETURNING id_evento_nfc
+                """, (tag["id_nfc"],))
+                id_evento_nfc = cur.fetchone()["id_evento_nfc"]
+
+                id_evento_beacon = None
+                if beacon_activo and id_beacon:
+                    cur.execute("""
+                        INSERT INTO evento_beacon
+                            (id_beacon, id_equipo, fecha_hora_evento, id_tipo_evento_beacon)
+                        VALUES (%s, %s, NOW(), 1)
+                        RETURNING id_evento_beacon
+                    """, (id_beacon, tag["id_equipo"]))
+                    id_evento_beacon = cur.fetchone()["id_evento_beacon"]
+
+            c.commit()
+
+        return jsonify(
+            ok=True,
+            equipo=dict(tag),
+            zona=zona,
+            beacon_activo=beacon_activo,
+            id_evento_nfc=id_evento_nfc,
+            id_evento_beacon=id_evento_beacon,
+        )
+    except Exception as e:
+        return jsonify(ok=False, mensaje=friendly_db_error(e)), 500
 
 
 if __name__ == "__main__":

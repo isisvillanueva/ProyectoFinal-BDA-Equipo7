@@ -281,6 +281,12 @@
                   {% for e in todos_equipos %}<option value="{{ e.id_equipo }}">{{ e.codigo_interno }} — {{ e.nombre_equipo }}</option>{% endfor %}
                 </select>
               </div>
+              <div class="fg"><label class="fl">Tipo de procedimiento</label>
+                <select class="fc" name="id_tipo_procedimiento" required>
+                  <option value="">Seleccionar…</option>
+                  {% for t in tipos_proc %}<option value="{{ t.id_tipo_procedimiento }}">{{ t.tipo_procedimiento }}</option>{% endfor %}
+                </select>
+              </div>
               <div class="fg"><label class="fl">Médico responsable</label><input class="fc" value="{{ session.nombre_completo or session.nombre }}" readonly></div>
               <div class="al in" style="margin-bottom:16px">
                 <span class="al-ic">ℹ️</span>

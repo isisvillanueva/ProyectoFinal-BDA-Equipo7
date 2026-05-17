@@ -395,14 +395,30 @@
           {% else %}<div class="empty-iot">Sin eventos Beacon registrados.</div>{% endif %}
         </div>
         <div id="t-inv" class="tab-pane">
-          <div class="section-hdr"><span class="dot dot-green"></span>Beacons registrados</div>
+          <div class="section-hdr" style="display:flex;justify-content:space-between;align-items:center;">
+            <span><span class="dot dot-green"></span>Beacons registrados</span>
+            <button class="btn-primary" onclick="document.getElementById('modal-beacon').style.display='flex'">+ Registrar Beacon</button>
+          </div>
           {% if beacons is defined and beacons %}
           <div class="card" style="margin-bottom:18px"><div class="tbl-wrap"><table class="iot-tbl">
-            <thead><tr><th>UUID</th><th>Major</th><th>Minor</th><th>Activo</th><th>Zona</th><th>Ubicación</th><th>Área</th></tr></thead>
+            <thead><tr><th>UUID</th><th>Major</th><th>Minor</th><th>Activo</th><th>Zona</th><th>Ubicación</th><th>Área</th><th>Acciones</th></tr></thead>
             <tbody>{% for b in beacons %}<tr>
-              <td class="ts-dim">{{ b.uuid_beacon }}</td><td>{{ b.major_beacon }}</td><td>{{ b.minor_beacon }}</td>
+              <td class="ts-dim" style="font-family:monospace;font-size:12px">{{ b.uuid_beacon }}</td>
+              <td>{{ b.major_beacon }}</td><td>{{ b.minor_beacon }}</td>
               <td>{% if b.activo_beacon %}<span class="badge b-green">Activo</span>{% else %}<span class="badge b-gray">Inactivo</span>{% endif %}</td>
               <td>{{ b.nombre_zona_beacon }}</td><td>{{ b.nombre_ubicacion }}</td><td>{{ b.nombre_area }}</td>
+              <td style="white-space:nowrap">
+                <button title="Editar" style="background:none;border:none;cursor:pointer;font-size:16px"
+                  onclick="abrirEditarBeacon({{ b.id_beacon }},'{{ b.uuid_beacon }}',{{ b.major_beacon }},{{ b.minor_beacon }},{{ b.id_zona_beacon }})">✏️</button>
+                <form method="POST" action="/admin/iot/beacon/{{ b.id_beacon }}/toggle" style="display:inline">
+                  <button title="{{ 'Desactivar' if b.activo_beacon else 'Activar' }}" style="background:none;border:none;cursor:pointer;font-size:16px">
+                    {{ '🔒' if b.activo_beacon else '🔓' }}</button>
+                </form>
+                <form method="POST" action="/admin/iot/beacon/{{ b.id_beacon }}/eliminar" style="display:inline"
+                  onsubmit="return confirm('¿Eliminar este beacon? Esta acción no se puede deshacer.')">
+                  <button title="Eliminar" style="background:none;border:none;cursor:pointer;font-size:16px">🗑️</button>
+                </form>
+              </td>
             </tr>{% endfor %}</tbody>
           </table></div></div>
           {% else %}<div class="empty-iot">Sin beacons registrados.</div>{% endif %}
@@ -1132,36 +1148,47 @@ function abrirAsignarResponsable(btn) {
         <label class="fl">Número de serie *</label>
         <input type="text" name="numero_serie" id="meq-serie" class="fc" required placeholder="Ej: SN-2024-001">
       </div>
-      <div class="frow">
-        <div class="fg">
-          <label class="fl">Marca</label>
-          <input type="text" name="marca" id="meq-marca" class="fc" placeholder="Ej: Philips">
-        </div>
-        <div class="fg">
-          <label class="fl">Modelo</label>
-          <input type="text" name="modelo" id="meq-modelo" class="fc" placeholder="Ej: MX450">
-        </div>
+      <div class="fg">
+        <label class="fl">Modelo (Marca + Modelo) *</label>
+        <select name="id_modelo" id="meq-modelo" class="fc" required>
+          <option value="">— Selecciona modelo —</option>
+          {% for m in modelos %}
+          <option value="{{ m.id_modelo }}">{{ m.nombre_marca }} — {{ m.nombre_modelo }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="frow">
         <div class="fg">
-          <label class="fl">Estado *</label>
-          <select name="estado_equipo" id="meq-estado" class="fc" required>
-            <option value="Disponible">Disponible</option>
-            <option value="En uso">En uso</option>
-            <option value="En mantenimiento">En mantenimiento</option>
-            <option value="Fuera de servicio">Fuera de servicio</option>
-            <option value="Retirado">Retirado</option>
-            <option value="En préstamo">En préstamo</option>
+          <label class="fl">Tipo de equipo *</label>
+          <select name="id_tipo_equipo" id="meq-tipo" class="fc" required>
+            <option value="">— Selecciona tipo —</option>
+            {% for t in tipos_equipo %}
+            <option value="{{ t.id_tipo_equipo }}">{{ t.tipo_equipo }}</option>
+            {% endfor %}
           </select>
         </div>
         <div class="fg">
-          <label class="fl">Criticidad</label>
-          <select name="criticidad_equipo" class="fc">
-            <option value="Alta">Alta</option>
-            <option value="Media" selected>Media</option>
-            <option value="Baja">Baja</option>
+          <label class="fl">Criticidad *</label>
+          <select name="id_criticidad_equipo" id="meq-criticidad" class="fc" required>
+            <option value="">— Selecciona —</option>
+            {% for c in criticidades %}
+            <option value="{{ c.id_criticidad_equipo }}">{{ c.criticidad_equipo }}</option>
+            {% endfor %}
           </select>
         </div>
+      </div>
+      <div class="fg">
+        <label class="fl">Ubicación inicial *</label>
+        <select name="id_ubicacion" id="meq-ubicacion" class="fc" required>
+          <option value="">— Selecciona ubicación —</option>
+          {% for u in ubicaciones %}
+          <option value="{{ u.id_ubicacion }}">{{ u.nombre_ubicacion }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">UID Tag NFC <span style="font-size:10px;color:var(--tx3)">(opcional — escanear el llavero NFC para obtenerlo)</span></label>
+        <input type="text" name="codigo_uid_nfc" id="meq-nfc" class="fc" placeholder="Ej: A3F2B1C4" style="font-family:monospace;text-transform:uppercase">
       </div>
       <div class="fg">
         <label class="fl">Observaciones</label>
@@ -1478,6 +1505,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (document.getElementById('iot-panel-root')) setInterval(refreshIoT, 60_000);
 
+  window.abrirEditarBeacon = function(id, uuid, major, minor, zona) {
+    document.getElementById('edit-beacon-uuid').value  = uuid;
+    document.getElementById('edit-beacon-major').value = major;
+    document.getElementById('edit-beacon-minor').value = minor;
+    document.getElementById('edit-beacon-zona').value  = zona;
+    document.getElementById('form-editar-beacon').action = '/admin/iot/beacon/' + id + '/editar';
+    document.getElementById('modal-editar-beacon').style.display = 'flex';
+  };
+
   setTimeout(() => {
     document.querySelectorAll('.flash-msg').forEach(el => {
       el.style.transition = 'opacity .4s'; el.style.opacity = '0';
@@ -1486,5 +1522,90 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 5000);
 });
 </script>
+
+<!-- MODAL: Editar Beacon -->
+<div class="modal-bg" id="modal-editar-beacon" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;">
+  <div class="modal" style="width:min(480px,96%);background:#fff;border-radius:14px;padding:28px 28px 20px;box-shadow:0 8px 32px rgba(0,0,0,.18);">
+    <div class="modal-hdr" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="modal-ttl" style="font-size:1.1rem;font-weight:700;">✏️ Editar Beacon BLE</div>
+      <button onclick="document.getElementById('modal-editar-beacon').style.display='none'" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#888;">×</button>
+    </div>
+    <form id="form-editar-beacon" method="POST" action="">
+      <div class="fg" style="margin-bottom:14px;">
+        <label class="fl" style="display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;">UUID del Beacon</label>
+        <input type="text" name="uuid_beacon" id="edit-beacon-uuid" class="fc" required
+          style="width:100%;font-family:monospace;text-transform:uppercase;padding:8px 10px;border:1px solid #ddd;border-radius:7px;">
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:14px;">
+        <div class="fg" style="flex:1;">
+          <label class="fl" style="display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;">Major</label>
+          <input type="number" name="major_beacon" id="edit-beacon-major" class="fc" min="0" required
+            style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;">
+        </div>
+        <div class="fg" style="flex:1;">
+          <label class="fl" style="display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;">Minor</label>
+          <input type="number" name="minor_beacon" id="edit-beacon-minor" class="fc" min="0" required
+            style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;">
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:20px;">
+        <label class="fl" style="display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;">Zona</label>
+        <select name="id_zona_beacon" id="edit-beacon-zona" class="fc" required style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;">
+          {% for z in zonas_beacon %}
+          <option value="{{ z.id_zona_beacon }}">{{ z.nombre_zona_beacon }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" onclick="document.getElementById('modal-editar-beacon').style.display='none'"
+          style="padding:9px 18px;border:1px solid #ddd;border-radius:7px;background:#f5f5f5;cursor:pointer;">Cancelar</button>
+        <button type="submit" style="padding:9px 22px;border:none;border-radius:7px;background:#0e7490;color:#fff;font-weight:600;cursor:pointer;">Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: Registrar Beacon -->
+<div class="modal-bg" id="modal-beacon" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;">
+  <div class="modal" style="width:min(480px,96%);background:#fff;border-radius:14px;padding:28px 28px 20px;box-shadow:0 8px 32px rgba(0,0,0,.18);">
+    <div class="modal-hdr" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="modal-ttl" style="font-size:1.1rem;font-weight:700;">📻 Registrar Beacon BLE</div>
+      <button onclick="document.getElementById('modal-beacon').style.display='none'" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#888;">×</button>
+    </div>
+    <form method="POST" action="/admin/iot/beacon">
+      <div class="fg" style="margin-bottom:14px;">
+        <label class="fl" style="display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;">UUID del Beacon</label>
+        <input type="text" name="uuid_beacon" class="fc" required placeholder="Ej: 4E6ED5AB-B3ED-4E10-8247-C5F5524D4B21"
+          style="width:100%;font-family:monospace;text-transform:uppercase;padding:8px 10px;border:1px solid #ddd;border-radius:7px;">
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:14px;">
+        <div class="fg" style="flex:1;">
+          <label class="fl" style="display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;">Major</label>
+          <input type="number" name="major_beacon" class="fc" min="0" required placeholder="Ej: 12"
+            style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;">
+        </div>
+        <div class="fg" style="flex:1;">
+          <label class="fl" style="display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;">Minor</label>
+          <input type="number" name="minor_beacon" class="fc" min="0" required placeholder="Ej: 0"
+            style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;">
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:20px;">
+        <label class="fl" style="display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;">Zona</label>
+        <select name="id_zona_beacon" class="fc" required style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;">
+          <option value="">— Selecciona zona —</option>
+          {% for z in zonas_beacon %}
+          <option value="{{ z.id_zona_beacon }}">{{ z.nombre_zona_beacon }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <button type="button" onclick="document.getElementById('modal-beacon').style.display='none'"
+          style="padding:9px 18px;border:1px solid #ddd;border-radius:7px;background:#f5f5f5;cursor:pointer;">Cancelar</button>
+        <button type="submit" style="padding:9px 22px;border:none;border-radius:7px;background:#0e7490;color:#fff;font-weight:600;cursor:pointer;">Registrar</button>
+      </div>
+    </form>
+  </div>
+</div>
 </body>
 </html>
