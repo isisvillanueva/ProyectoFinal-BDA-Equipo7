@@ -54,7 +54,6 @@
     }
     .user-bar strong { color: #cbd5e1; }
 
-    /* Beacon status */
     .beacon-box {
       display: flex;
       align-items: center;
@@ -90,12 +89,8 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .beacon-info span {
-      font-size: 11px;
-      color: #64748b;
-    }
+    .beacon-info span { font-size: 11px; color: #64748b; }
 
-    /* Botón principal */
     .btn-nfc {
       width: 100%;
       padding: 17px;
@@ -118,7 +113,96 @@
       transform: none;
     }
 
-    /* Resultado */
+    /* Equipo detectado */
+    .eq-card {
+      background: #0f172a;
+      border-radius: 12px;
+      padding: 14px 15px;
+      margin-top: 16px;
+      border: 1px solid #334155;
+    }
+    .eq-nombre {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .eq-codigo { font-size: 12px; color: #64748b; font-family: monospace; }
+
+    /* Panel de acción */
+    .action-panel { margin-top: 14px; }
+    .action-label {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    /* Uso activo */
+    .uso-activo-box {
+      background: rgba(234,179,8,.08);
+      border: 1px solid rgba(234,179,8,.25);
+      border-radius: 12px;
+      padding: 13px 15px;
+      margin-bottom: 12px;
+    }
+    .uso-activo-box .ua-label {
+      font-size: 11px;
+      color: #ca8a04;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 4px;
+    }
+    .uso-activo-box .ua-proc {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fde68a;
+    }
+    .uso-activo-box .ua-fecha {
+      font-size: 12px;
+      color: #92400e;
+      margin-top: 2px;
+    }
+
+    /* Select */
+    .sel {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      color: #e2e8f0;
+      font-size: 14px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+    }
+    .sel:focus { border-color: #38bdf8; }
+
+    .btn-action {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn-action:active { transform: scale(.97); }
+    .btn-action:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .btn-registrar {
+      background: linear-gradient(135deg, #22c55e 0%, #059669 100%);
+      color: #fff;
+    }
+    .btn-cerrar {
+      background: linear-gradient(135deg, #f59e0b 0%, #dc2626 100%);
+      color: #fff;
+    }
+
+    /* Resultado final */
     .result {
       display: none;
       margin-top: 16px;
@@ -138,12 +222,22 @@
       border: 1px solid rgba(239,68,68,.3);
       color: #fca5a5;
     }
-    .result .equipo-nombre {
-      font-size: 15px;
-      font-weight: 700;
-      margin-bottom: 3px;
+    .result .res-titulo { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+    .result .res-detalle { opacity: .8; }
+
+    .btn-reset {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px;
+      background: transparent;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      color: #94a3b8;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      touch-action: manipulation;
     }
-    .result .detalle { color: inherit; opacity: .8; }
 
     .logout {
       display: block;
@@ -162,7 +256,7 @@
   <div class="brand">⬡ <strong>HospitalIoT</strong></div>
 
   <h1>Escanear equipo</h1>
-  <p class="sub">Acerca el llavero NFC al celular<br>para registrar el equipo</p>
+  <p class="sub">Acerca el llavero NFC al celular<br>para gestionar el uso clínico</p>
 
   <p class="user-bar">Sesión: <strong>{{ session.nombre_completo }}</strong></p>
 
@@ -178,21 +272,58 @@
     Escanear NFC
   </button>
 
-  <div class="result" id="result">
-    <div class="equipo-nombre" id="res-nombre"></div>
-    <div class="detalle" id="res-detalle"></div>
+  <!-- Panel que aparece tras el scan -->
+  <div id="action-panel" style="display:none">
+    <div class="eq-card">
+      <div class="eq-nombre" id="eq-nombre"></div>
+      <div class="eq-codigo" id="eq-codigo"></div>
+    </div>
+
+    <!-- Si hay uso activo -->
+    <div class="action-panel" id="panel-cerrar" style="display:none">
+      <div class="uso-activo-box" style="margin-top:12px">
+        <div class="ua-label">Uso clínico activo</div>
+        <div class="ua-proc" id="ua-proc"></div>
+        <div class="ua-fecha">Desde <span id="ua-fecha"></span></div>
+      </div>
+      <button class="btn-action btn-cerrar" id="btn-cerrar" onclick="cerrarUso()">
+        Cerrar uso clínico
+      </button>
+    </div>
+
+    <!-- Si no hay uso activo -->
+    <div class="action-panel" id="panel-registrar" style="display:none">
+      <p class="action-label" style="margin-top:14px">Tipo de procedimiento</p>
+      <select class="sel" id="sel-proc"></select>
+      <button class="btn-action btn-registrar" id="btn-registrar" onclick="registrarUso()">
+        Registrar uso clínico
+      </button>
+    </div>
   </div>
+
+  <!-- Mensaje de resultado -->
+  <div class="result" id="result">
+    <div class="res-titulo" id="res-titulo"></div>
+    <div class="res-detalle" id="res-detalle"></div>
+  </div>
+  <button class="btn-reset" id="btn-reset" style="display:none" onclick="resetear()">
+    Escanear otro equipo
+  </button>
 
   <a href="{{ url_for('logout') }}" class="logout">Cerrar sesión</a>
 </div>
 
 <script>
 let beaconActivo = false;
+let _equipo     = null;
+let _usoActivo  = null;
+
+const NGROK_HDR = { "ngrok-skip-browser-warning": "1" };
 
 async function actualizarBeacon() {
   try {
-    const r  = await fetch("/api/beacon/estado");
-    const d  = await r.json();
+    const r   = await fetch("/api/beacon/estado", { headers: NGROK_HDR });
+    const d   = await r.json();
     const dot = document.getElementById("bdot");
     const zon = document.getElementById("bzona");
     const det = document.getElementById("bdetalle");
@@ -201,17 +332,18 @@ async function actualizarBeacon() {
     beaconActivo = d.activo;
 
     if (d.activo) {
-      dot.className     = "beacon-dot activo";
-      zon.textContent   = d.zona || "Zona activa";
-      det.textContent   = `RSSI ${d.rssi ?? "--"} dBm · hace ${d.segundos_ago}s`;
-      btn.disabled      = false;
-      btn.textContent   = "Escanear NFC";
+      dot.className   = "beacon-dot activo";
+      zon.textContent = d.zona || "Zona activa";
+      det.textContent = `RSSI ${d.rssi ?? "--"} dBm · hace ${d.segundos_ago}s`;
+      if (!document.getElementById("action-panel").style.display || document.getElementById("action-panel").style.display === "none") {
+        btn.disabled    = false;
+        btn.textContent = "Escanear NFC";
+      }
     } else {
-      dot.className     = "beacon-dot";
-      zon.textContent   = "Sin señal de beacon";
-      det.textContent   = "Acércate al área para continuar";
-      btn.disabled      = true;
-      btn.textContent   = "Escanear NFC";
+      dot.className   = "beacon-dot";
+      zon.textContent = "Sin señal de beacon";
+      det.textContent = "Acércate al área para continuar";
+      btn.disabled    = true;
     }
   } catch (_) {
     document.getElementById("bzona").textContent = "Error al verificar beacon";
@@ -220,7 +352,7 @@ async function actualizarBeacon() {
 
 async function escanearNFC() {
   if (!("NDEFReader" in window)) {
-    mostrar(false, "NFC no disponible", "Usa Chrome en Android con NFC activado.");
+    mostrarError("NFC no disponible", "Usa Chrome en Android con NFC activado.");
     return;
   }
   const btn = document.getElementById("btn");
@@ -234,19 +366,17 @@ async function escanearNFC() {
     ndef.onreading = async (ev) => {
       ndef.onreading = null;
       const uid = ev.serialNumber.replace(/:/g, "").toUpperCase();
-      btn.textContent = "Registrando…";
+      btn.textContent = "Procesando…";
       await enviar(uid);
-      btn.disabled    = false;
-      btn.textContent = "Escanear NFC";
     };
 
     ndef.onerror = () => {
-      mostrar(false, "Error de lectura", "Intenta de nuevo.");
+      mostrarError("Error de lectura", "Intenta de nuevo.");
       btn.disabled    = false;
       btn.textContent = "Escanear NFC";
     };
   } catch (e) {
-    mostrar(false, "Permiso denegado", e.message);
+    mostrarError("Permiso denegado", e.message);
     btn.disabled    = false;
     btn.textContent = "Escanear NFC";
   }
@@ -256,30 +386,132 @@ async function enviar(uid) {
   try {
     const r = await fetch("/api/nfc/movil", {
       method:  "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...NGROK_HDR },
       body:    JSON.stringify({ uid_nfc: uid }),
     });
     const d = await r.json();
-    if (d.ok) {
-      const eq  = d.equipo || {};
-      const zon = d.zona ? ` · Zona: ${d.zona}` : "";
-      mostrar(true,
-        eq.nombre_equipo || "Equipo registrado",
-        `Código: ${eq.codigo_interno || "—"}${zon}`
-      );
-    } else {
-      mostrar(false, "No reconocido", d.mensaje);
+
+    if (!d.ok) {
+      mostrarError("No reconocido", d.mensaje);
+      document.getElementById("btn").disabled    = false;
+      document.getElementById("btn").textContent = "Escanear NFC";
+      return;
     }
+
+    _equipo    = d.equipo;
+    _usoActivo = d.uso_activo;
+
+    document.getElementById("eq-nombre").textContent = d.equipo.nombre_equipo;
+    document.getElementById("eq-codigo").textContent = d.equipo.codigo_interno;
+    document.getElementById("btn").style.display = "none";
+
+    if (d.uso_activo) {
+      document.getElementById("ua-proc").textContent  = d.uso_activo.tipo_procedimiento;
+      document.getElementById("ua-fecha").textContent = d.uso_activo.fecha_hora_inicio;
+      document.getElementById("panel-cerrar").style.display    = "block";
+      document.getElementById("panel-registrar").style.display = "none";
+    } else {
+      const sel = document.getElementById("sel-proc");
+      sel.innerHTML = d.tipos_proc.map(t =>
+        `<option value="${t.id_tipo_procedimiento}">${t.tipo_procedimiento}</option>`
+      ).join("");
+      document.getElementById("panel-cerrar").style.display    = "none";
+      document.getElementById("panel-registrar").style.display = "block";
+    }
+
+    document.getElementById("action-panel").style.display = "block";
+
   } catch (e) {
-    mostrar(false, "Error de red", e.message);
+    mostrarError("Error de red", e.message);
+    document.getElementById("btn").disabled    = false;
+    document.getElementById("btn").textContent = "Escanear NFC";
   }
 }
 
-function mostrar(ok, titulo, detalle) {
+async function registrarUso() {
+  const idProc = document.getElementById("sel-proc").value;
+  const btn    = document.getElementById("btn-registrar");
+  btn.disabled    = true;
+  btn.textContent = "Registrando…";
+
+  try {
+    const r = await fetch("/api/movil/uso/registrar", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", ...NGROK_HDR },
+      body:    JSON.stringify({
+        id_equipo:             _equipo.id_equipo,
+        id_tipo_procedimiento: parseInt(idProc),
+      }),
+    });
+    const d = await r.json();
+    document.getElementById("action-panel").style.display = "none";
+    if (d.ok) {
+      mostrarOk("Uso registrado", _equipo.nombre_equipo);
+    } else {
+      mostrarError("Error al registrar", d.mensaje);
+    }
+  } catch (e) {
+    mostrarError("Error de red", e.message);
+  }
+
+  btn.disabled    = false;
+  btn.textContent = "Registrar uso clínico";
+}
+
+async function cerrarUso() {
+  const btn = document.getElementById("btn-cerrar");
+  btn.disabled    = true;
+  btn.textContent = "Cerrando…";
+
+  try {
+    const r = await fetch("/api/movil/uso/cerrar", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", ...NGROK_HDR },
+      body:    JSON.stringify({ id_uso_clinico: _usoActivo.id_uso_clinico }),
+    });
+    const d = await r.json();
+    document.getElementById("action-panel").style.display = "none";
+    if (d.ok) {
+      mostrarOk("Uso cerrado", _equipo.nombre_equipo);
+    } else {
+      mostrarError("Error al cerrar", d.mensaje);
+    }
+  } catch (e) {
+    mostrarError("Error de red", e.message);
+  }
+
+  btn.disabled    = false;
+  btn.textContent = "Cerrar uso clínico";
+}
+
+function mostrarOk(titulo, detalle) {
   const box = document.getElementById("result");
-  box.className = "result show " + (ok ? "ok" : "err");
-  document.getElementById("res-nombre").textContent  = titulo;
+  box.className = "result show ok";
+  document.getElementById("res-titulo").textContent  = titulo;
   document.getElementById("res-detalle").textContent = detalle;
+  document.getElementById("btn-reset").style.display = "block";
+}
+
+function mostrarError(titulo, detalle) {
+  const box = document.getElementById("result");
+  box.className = "result show err";
+  document.getElementById("res-titulo").textContent  = titulo;
+  document.getElementById("res-detalle").textContent = detalle;
+  document.getElementById("btn-reset").style.display = "block";
+}
+
+function resetear() {
+  _equipo    = null;
+  _usoActivo = null;
+  document.getElementById("action-panel").style.display = "none";
+  document.getElementById("panel-cerrar").style.display    = "none";
+  document.getElementById("panel-registrar").style.display = "none";
+  document.getElementById("result").className  = "result";
+  document.getElementById("btn-reset").style.display = "none";
+  const btn = document.getElementById("btn");
+  btn.style.display = "";
+  btn.disabled      = !beaconActivo;
+  btn.textContent   = "Escanear NFC";
 }
 
 actualizarBeacon();

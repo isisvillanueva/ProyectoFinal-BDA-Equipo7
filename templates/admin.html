@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;1,8..60,300&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/leaflet.css') }}">
   <script src="https://code.highcharts.com/highcharts.js"></script>
   <style>
     .tbl-actions { display:flex; gap:6px; align-items:center; }
@@ -87,21 +88,35 @@
           <div class="topbar-sub">HospitalIoT · Control total del sistema</div>
         </div>
         <div class="topbar-right view-header-actions">
-          <button class="btn btn-primary btn-sm" onclick="openModal('m-nuevo-equipo')">+ Equipo</button>
-          <button class="btn btn-secondary btn-sm" onclick="openModal('m-nueva-asig')">+ Asignar</button>
-          <button class="btn btn-secondary btn-sm" onclick="openModal('m-nuevo-traslado')">🚑 Préstamo</button>
           <span id="last-refresh" class="ts-dim">Actualizado ahora</span>
         </div>
       </div>
       <div class="content">
         {% if total_disc is defined and total_disc > 0 %}
-        <div class="dash-alert">🚨 <strong>{{ total_disc }} discrepancia(s) IoT activa(s)</strong> — equipos con ubicación inconsistente.
-          <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="goTo('v-iot')">Ver ahora</button></div>
+        <div class="dash-alert" id="alerta-disc">🚨 <strong>{{ total_disc }} discrepancia(s) IoT activa(s)</strong> — equipos con ubicación inconsistente.
+          <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="goTo('v-iot')">Ver ahora</button>
+          <button onclick="document.getElementById('alerta-disc').remove()" style="background:none;border:none;color:inherit;font-size:16px;cursor:pointer;margin-left:8px">✕</button>
+        </div>
         {% endif %}
         {% if total_sin_evidencia is defined and total_sin_evidencia > 0 %}
-        <div class="dash-alert warn">📵 <strong>{{ total_sin_evidencia }} equipo(s) sin señal IoT</strong> en las últimas 12 h.
-          <button class="btn btn-amber btn-sm" style="margin-left:auto" onclick="goTo('v-iot')">Revisar</button></div>
+        <div class="dash-alert warn" id="alerta-senal">📵 <strong>{{ total_sin_evidencia }} equipo(s) sin señal IoT</strong> en las últimas 12 h.
+          <button class="btn btn-amber btn-sm" style="margin-left:auto" onclick="goTo('v-iot')">Revisar</button>
+          <button onclick="document.getElementById('alerta-senal').remove()" style="background:none;border:none;color:inherit;font-size:16px;cursor:pointer;margin-left:8px">✕</button>
+        </div>
         {% endif %}
+
+        <!-- Accesos rápidos -->
+        <div class="section-hdr"><span class="dot dot-green"></span>Accesos rápidos</div>
+        <div class="iot-grid">
+          <button class="btn btn-secondary adm-shortcut" data-view="v-equipos">🔬 Equipos</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-asig">📌 Asignaciones</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-movs">🔄 Movimientos</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-mants">🔧 Mantenimientos</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-traslados">🚑 Traslados</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-reportes">📈 Reportes</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-iot">📡 Gestión IoT</button>
+          <button class="btn btn-secondary adm-shortcut" data-view="v-auditoria">🔍 Auditoría</button>
+        </div>
 
         <!-- KPIs principales -->
         <div class="stats">
@@ -154,7 +169,7 @@
         {% else %}<div class="empty-iot">No hay datos de estados.</div>{% endif %}
 
         <!-- Cards por rol -->
-        <div class="section-hdr"><span class="dot dot-teal"></span>Usuarios &amp; Roles</div>
+        <div class="section-hdr"><span class="dot dot-blue"></span>Usuarios &amp; Roles</div>
         <div class="rol-cards">
           {% for rol, color in [('Médico','var(--teal)'),('Enfermero','var(--green)'),('Biomédico','var(--amber)'),('Administrador','var(--blue)'),('Conductor','var(--purple)')] %}
           <div class="rol-card" style="--rc:{{ color }}">
@@ -214,18 +229,39 @@
           </div>
         </div>
 
-        <!-- Accesos rápidos -->
-        <div class="section-hdr"><span class="dot dot-green"></span>Accesos rápidos</div>
-        <div class="iot-grid">
-          <button class="btn btn-secondary adm-shortcut" data-view="v-equipos">🔬 Equipos</button>
-          <button class="btn btn-secondary adm-shortcut" data-view="v-asig">📌 Asignaciones</button>
-          <button class="btn btn-secondary adm-shortcut" data-view="v-movs">🔄 Movimientos</button>
-          <button class="btn btn-secondary adm-shortcut" data-view="v-mants">🔧 Mantenimientos</button>
-          <button class="btn btn-secondary adm-shortcut" data-view="v-traslados">🚑 Traslados</button>
-          <button class="btn btn-secondary adm-shortcut" data-view="v-reportes">📈 Reportes</button>
-          <button class="btn btn-secondary adm-shortcut" data-view="v-iot">📡 Gestión IoT</button>
-          <button class="btn btn-secondary adm-shortcut" data-view="v-auditoria">🔍 Auditoría</button>
+        <!-- Usos clínicos recientes -->
+        <div class="card" style="margin-top:20px">
+          <div class="card-hdr">
+            <span class="card-ttl">🩺 Usos clínicos recientes</span>
+            <select id="filtro-area-uso" class="fc" style="width:auto;padding:4px 10px;font-size:12px" onchange="filtrarUsos()">
+              <option value="">Todas las áreas</option>
+              {% for area in areas_uso %}
+              <option value="{{ area }}">{{ area }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="tbl-wrap">
+            <table class="iot-tbl" id="tb-usos">
+              <thead><tr><th>Equipo</th><th>Código</th><th>Personal</th><th>Área</th><th>Inicio</th><th>Fin</th><th>Estado</th></tr></thead>
+              <tbody id="tbody-usos">
+              {% for u in usos_clinicos_recientes %}
+              <tr data-area="{{ u.nombre_area }}">
+                <td>{{ u.nombre_equipo }}</td>
+                <td><span class="cod">{{ u.codigo_interno }}</span></td>
+                <td>{{ u.persona }}</td>
+                <td>{{ u.nombre_area }}</td>
+                <td class="ts-dim">{{ u.fecha_hora_inicio }}</td>
+                <td class="ts-dim">{{ u.fecha_hora_fin or '—' }}</td>
+                <td>{% if not u.fecha_hora_fin %}<span style="color:#22c55e;font-size:11px">● Activo</span>{% else %}<span class="ts-dim" style="font-size:11px">Cerrado</span>{% endif %}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="7" class="empty-iot">Sin usos clínicos registrados.</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
+
       </div>
     </section>
 
@@ -579,7 +615,38 @@
         </div>
       </div>
       <div class="content">
-        <div class="card"><div class="tbl-wrap">
+
+        <!-- Mantenimientos vencidos -->
+        {% set vencidos = mants_vencidos if mants_vencidos is defined else [] %}
+        {% if vencidos %}
+        <div class="card" style="border:1px solid #ef444455;margin-bottom:20px">
+          <div class="card-hdr" style="background:#ef444411">
+            <span class="card-ttl" style="color:#ef4444">🚨 Mantenimientos vencidos ({{ vencidos|length }}) — sin reprogramar</span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="iot-tbl">
+              <thead><tr><th>Código</th><th>Equipo</th><th>Tipo</th><th>Prioridad</th><th>Venció</th><th>SLA (h)</th><th>Observación</th></tr></thead>
+              <tbody>
+              {% for v in vencidos %}
+              <tr>
+                <td><span class="cod">{{ v.codigo_interno }}</span></td>
+                <td>{{ v.nombre_equipo }}</td>
+                <td>{{ v.tipo_mantenimiento }}</td>
+                <td><span style="color:{% if v.prioridad_mantenimiento == 'Alta' %}#ef4444{% elif v.prioridad_mantenimiento == 'Media' %}#f59e0b{% else %}#64748b{% endif %}">{{ v.prioridad_mantenimiento }}</span></td>
+                <td class="ts-dim">{{ v.fecha_proximo_mantenimiento or '—' }}</td>
+                <td>{{ v.sla_horas }}</td>
+                <td class="ts-dim">{{ v.observacion_programacion or '—' }}</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">🔧 Historial de mantenimientos realizados</span></div>
+          <div class="tbl-wrap">
           <table class="iot-tbl" id="tb-mants">
             <thead><tr><th>Código</th><th>Equipo</th><th>Tipo</th><th>Resultado</th><th>Biomédico</th><th>Fecha</th></tr></thead>
             <tbody>
@@ -594,7 +661,8 @@
             </tbody>
           </table>
           {% if mantenimientos|length == 0 %}<div class="empty-iot">No hay mantenimientos registrados.</div>{% endif %}
-        </div></div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -603,7 +671,6 @@
       <div class="topbar">
         <div class="topbar-left">
           <div class="topbar-title">Traslados <em style="font-family:var(--f2);font-weight:300;color:var(--teal)">Externos</em></div>
-          <div class="topbar-sub">Registro vía ambulancia · SP: sp_registrar_traslado_externo</div>
         </div>
         <div class="topbar-right view-header-actions">
           <input type="text" class="tbl-search" placeholder="Buscar..." oninput="filterTable(this,'tb-traslados')">
@@ -611,6 +678,81 @@
         </div>
       </div>
       <div class="content">
+
+        <!-- GPS — Estado de ambulancias -->
+        <div class="section-hdr"><span class="dot dot-teal"></span>GPS — Estado de ambulancias</div>
+        <div class="amb-cards">
+          {% for amb in ambulancias_gps %}
+          <div class="amb-card">
+            <div class="amb-stripe" style="background:{% if amb.ultimo_ping %}var(--green){% else %}var(--border2){% endif %}"></div>
+            <div class="amb-card-top">
+              <span class="amb-icon">🚑</span>
+              <span class="amb-code">{{ amb.codigo_ambulancia }}</span>
+            </div>
+            <div class="amb-placa">{{ amb.placa }}</div>
+            <span class="badge {% if amb.ultimo_ping %}b-green{% else %}b-gray{% endif %}">
+              <span class="bdot"></span>
+              {% if amb.ultimo_ping %}GPS activo{% else %}Sin señal GPS{% endif %}
+            </span>
+            <div class="amb-meta">
+              <div class="amb-meta-row"><span>Estado</span><span>{{ amb.estado_ambulancia }}</span></div>
+              {% if amb.ultimo_ping %}
+              <div class="amb-meta-row"><span>Último ping</span><span>{{ amb.ultimo_ping }}</span></div>
+              <div class="amb-meta-row"><span>Coordenadas</span><span>{{ '%.5f'|format(amb.latitud) }}, {{ '%.5f'|format(amb.longitud) }}</span></div>
+              {% endif %}
+            </div>
+          </div>
+          {% else %}
+          <div class="empty">Sin ambulancias registradas.</div>
+          {% endfor %}
+        </div>
+
+        <!-- Mapa Leaflet -->
+        {% set amb_con_gps = ambulancias_gps | selectattr('latitud') | list %}
+        {% if amb_con_gps %}
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-hdr"><span class="card-ttl">🗺 Posición en tiempo real</span></div>
+          <div id="mapa-ambulancias" style="height:380px;width:100%"></div>
+        </div>
+        {% else %}
+        <div class="al in" style="margin-bottom:20px">
+          <span class="al-ic">📍</span>
+          <div class="al-b"><strong>Sin posición GPS registrada</strong><span>Activa Traccar Client en las ambulancias para ver el mapa.</span></div>
+        </div>
+        {% endif %}
+
+        <!-- Traslados activos -->
+        <div class="section-hdr"><span class="dot dot-amber"></span>Traslados en curso</div>
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-hdr"><span class="card-ttl">🚑 Traslados activos</span></div>
+          {% if traslados_activos %}
+          <div class="tbl-wrap">
+            <table class="iot-tbl" id="tb-traslados-activos">
+              <thead><tr><th>Equipo</th><th>Ambulancia</th><th>Conductor</th><th>Tipo</th><th>Motivo</th><th>Salida</th><th></th></tr></thead>
+              <tbody>
+                {% for t in traslados_activos %}
+                <tr id="traslado-{{ t.id_traslado_externo }}">
+                  <td><strong>{{ t.nombre_equipo }}</strong><br><span class="cod">{{ t.codigo_interno }}</span></td>
+                  <td>{{ t.codigo_ambulancia }}<br><span class="mono">{{ t.placa }}</span></td>
+                  <td>{{ t.conductor }}</td>
+                  <td>{{ t.tipo_traslado }}</td>
+                  <td class="ts-dim">{{ t.motivo_traslado or '—' }}</td>
+                  <td><span class="mono">{{ t.fecha_salida }}</span></td>
+                  <td><button class="btn btn-danger btn-sm btn-cerrar-traslado" data-id="{{ t.id_traslado_externo }}">Cerrar</button></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="empty-iot">Sin traslados activos en este momento.</div>
+          {% endif %}
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- KPIs resumen historial -->
+        <div class="section-hdr"><span class="dot dot-blue"></span>Historial de traslados</div>
         <div class="iot-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
           <div class="iot-kpi"><div class="kpi-val">{{ traslados|length }}</div><div class="kpi-lbl">Total</div></div>
           <div class="iot-kpi">
@@ -622,8 +764,9 @@
             <div class="kpi-lbl">Completados</div>
           </div>
         </div>
+
         <div class="card">
-          <div class="card-hdr"><span class="card-ttl">🚑 Historial de traslados — v_historial_traslados_externos</span></div>
+          <div class="card-hdr"><span class="card-ttl">📋 Historial completo</span></div>
           <div class="tbl-wrap">
             <table class="iot-tbl" id="tb-traslados">
               <thead><tr><th>Equipo</th><th>Ambulancia</th><th>Conductor</th><th>Tipo</th><th>Salida</th><th>Llegada</th><th>Motivo</th></tr></thead>
@@ -644,6 +787,7 @@
             {% if traslados|length == 0 %}<div class="empty-iot">No hay traslados registrados.</div>{% endif %}
           </div>
         </div>
+
       </div>
     </section>
 
@@ -1481,6 +1625,17 @@ async function refreshIoT() {
   } catch(e) { toast('Error al actualizar IoT', false); }
 }
 
+function filtrarUsos() {
+  const area = document.getElementById('filtro-area-uso').value;
+  document.querySelectorAll('#tbody-usos tr[data-area]').forEach(tr => {
+    tr.style.display = (!area || tr.dataset.area === area) ? '' : 'none';
+  });
+}
+
+// Auto-dismiss alertas IoT después de 10 s
+setTimeout(() => { document.getElementById('alerta-disc')?.remove(); }, 10000);
+setTimeout(() => { document.getElementById('alerta-senal')?.remove(); }, 10000);
+
 document.addEventListener('DOMContentLoaded', () => {
   HospitalIoT.sidebar.highlightActive();
 
@@ -1607,5 +1762,79 @@ document.addEventListener('DOMContentLoaded', () => {
     </form>
   </div>
 </div>
+
+<div id="toast"></div>
+
+<script src="{{ url_for('static', filename='js/leaflet.js') }}"></script>
+<script>
+'use strict';
+
+// ── Cerrar traslado ──────────────────────────────────────────────────────────
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.btn-cerrar-traslado');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  if (!confirm('¿Cerrar este traslado y registrar la llegada?')) return;
+  btn.disabled = true;
+  btn.textContent = '…';
+  fetch(`/api/traslado/cerrar/${id}`, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        document.getElementById(`traslado-${id}`)?.remove();
+        toast('Traslado cerrado correctamente.', true);
+      } else {
+        alert('Error: ' + (d.error || 'desconocido'));
+        btn.disabled = false;
+        btn.textContent = 'Cerrar';
+      }
+    })
+    .catch(() => { btn.disabled = false; btn.textContent = 'Cerrar'; });
+});
+
+// ── Mapa GPS ambulancias (inicializar solo al activar v-traslados) ────────────
+const AMB_GPS = {{ ambulancias_gps | tojson | safe }};
+
+function initMapaAmbulances() {
+  const mapEl = document.getElementById('mapa-ambulancias');
+  if (!mapEl || mapEl._mapaIniciado) return;
+  mapEl._mapaIniciado = true;
+
+  const conGps = AMB_GPS.filter(a => a.latitud != null && a.longitud != null);
+  if (!conGps.length) return;
+
+  const map = L.map('mapa-ambulancias');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(map);
+
+  const iconAmb = L.divIcon({
+    html: '<div style="font-size:26px;line-height:1">🚑</div>',
+    iconSize: [32, 32], iconAnchor: [16, 16], className: ''
+  });
+
+  const markers = conGps.map(a =>
+    L.marker([a.latitud, a.longitud], { icon: iconAmb })
+      .addTo(map)
+      .bindPopup(
+        `<b>${a.codigo_ambulancia}</b> — ${a.placa}<br>` +
+        `Estado: ${a.estado_ambulancia}<br>` +
+        `Último ping: ${a.ultimo_ping || '—'}<br>` +
+        `<small>${a.latitud.toFixed(5)}, ${a.longitud.toFixed(5)}</small>`
+      )
+  );
+
+  L.featureGroup(markers).getBounds() &&
+    map.fitBounds(L.featureGroup(markers).getBounds().pad(0.3));
+}
+
+// Engancha en goTo para inicializar el mapa al primer acceso a traslados
+const _goToOrig = window.goTo;
+window.goTo = function(id) {
+  _goToOrig(id);
+  if (id === 'v-traslados') setTimeout(initMapaAmbulances, 80);
+};
+</script>
 </body>
 </html>

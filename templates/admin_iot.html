@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HospitalIoT — Panel IoT & Auditoría</title>
+  <title>HospitalIoT — Gestión IoT</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;1,8..60,300&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
@@ -33,25 +33,15 @@
       <a class="sbn-item" href="{{ url_for('admin_iot') }}">
         <span class="sbn-ic">📡</span>Gestión IoT
       </a>
-      <div class="sbn-sec">Accesos rápidos</div>
-      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-equipos">
-        <span class="sbn-ic">🔬</span>Equipos
-      </a>
-      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-asig">
-        <span class="sbn-ic">📌</span>Asignaciones
-      </a>
-      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-movs">
-        <span class="sbn-ic">🔄</span>Movimientos
-      </a>
-      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-mants">
-        <span class="sbn-ic">🔧</span>Mantenimientos
-      </a>
-      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-traslados">
-        <span class="sbn-ic">🚑</span>Traslados
-      </a>
-      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-usuarios">
-        <span class="sbn-ic">👥</span>Usuarios
-      </a>
+      <div class="sbn-sec">Inventario</div>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-equipos"><span class="sbn-ic">🔬</span>Equipos</a>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-asig"><span class="sbn-ic">📌</span>Asignaciones</a>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-movs"><span class="sbn-ic">🔄</span>Movimientos</a>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-mants"><span class="sbn-ic">🔧</span>Mantenimientos</a>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-traslados"><span class="sbn-ic">🚑</span>Traslados</a>
+      <div class="sbn-sec">Administración</div>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-usuarios"><span class="sbn-ic">👥</span>Usuarios</a>
+      <a class="sbn-item" href="{{ url_for('admin_v') }}#v-auditoria"><span class="sbn-ic">🔍</span>Auditoría</a>
     </nav>
     <div class="sb-foot">
       <div class="sb-uname">{{ session.nombre }}</div>
@@ -66,7 +56,7 @@
     <!-- TOPBAR -->
     <div class="topbar">
       <div class="topbar-left">
-        <div class="topbar-title">📡 Panel IoT &amp; Auditoría</div>
+        <div class="topbar-title">📡 Gestión IoT</div>
         <div class="topbar-sub">Monitoreo en tiempo real · Discrepancias · Trazabilidad</div>
       </div>
       <div class="topbar-right">
@@ -118,8 +108,6 @@
         <button class="tab-iot" onclick="switchTab('t-nfc', this)">📟 Eventos NFC</button>
         <button class="tab-iot" onclick="switchTab('t-beacon', this)">📻 Eventos Beacon</button>
         <button class="tab-iot" onclick="switchTab('t-inv', this)">🗂 Inventario IoT</button>
-        <button class="tab-iot" onclick="switchTab('t-audit', this)">🔍 Auditoría</button>
-        <button class="tab-iot" onclick="switchTab('t-users', this)">👤 Actividad usuarios</button>
       </div>
 
       <!-- Tab: Discrepancias -->
@@ -438,12 +426,16 @@
                   {% endfor %}
                 </select>
               </div>
-              <div class="fg" style="flex-shrink:0;padding-bottom:4px">
-                <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
+              <div class="fg" style="flex-shrink:0">
+                <label class="fl" style="visibility:hidden">‎</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;padding:9px 0">
                   <input type="checkbox" name="activo_beacon" checked> Activo
                 </label>
               </div>
-              <button type="submit" class="btn btn-primary btn-sm">Registrar</button>
+              <div class="fg" style="flex-shrink:0">
+                <label class="fl" style="visibility:hidden">‎</label>
+                <button type="submit" class="btn btn-primary btn-sm">Registrar</button>
+              </div>
             </form>
           </div>
         </div>
@@ -510,95 +502,6 @@
 
       </div>
 
-      <!-- Tab: Auditoría -->
-      <div id="t-audit" class="tab-pane">
-        <div class="section-hdr">
-          <span class="dot dot-purple"></span>
-          Últimas 100 acciones auditadas
-        </div>
-        {% if auditoria_reciente %}
-        <div class="card">
-          <div class="tbl-wrap">
-            <table class="iot-tbl">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Tabla</th>
-                  <th>Acción</th>
-                  <th>Registro</th>
-                  <th>Usuario</th>
-                  <th>Origen</th>
-                  <th>Fecha/hora</th>
-                  <th>Nivel</th>
-                </tr>
-              </thead>
-              <tbody>
-              {% for a in auditoria_reciente %}
-              <tr>
-                <td class="ts-dim">{{ a.id_auditoria }}</td>
-                <td>{{ a.tabla_afectada }}</td>
-                <td>
-                  {% if a.accion_auditoria in ('DESACTIVACION', 'DELETE_LOGICO') %}
-                    <span class="badge b-red">{{ a.accion_auditoria }}</span>
-                  {% elif a.accion_auditoria == 'ACTIVACION' %}
-                    <span class="badge b-green">{{ a.accion_auditoria }}</span>
-                  {% else %}
-                    <span class="badge b-gray">{{ a.accion_auditoria }}</span>
-                  {% endif %}
-                </td>
-                <td>{{ a.id_registro_afectado }}</td>
-                <td><strong>{{ a.ejecutado_por }}</strong></td>
-                <td class="ts-dim">{{ a.origen_cambio }}</td>
-                <td class="ts-dim">{{ a.fecha_hora_auditoria }}</td>
-                <td class="ts-dim">{{ a.nivel_atencion }}</td>
-              </tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        {% else %}
-          <div class="empty-iot">Sin registros de auditoría.</div>
-        {% endif %}
-      </div>
-
-      <!-- ── Tab: Actividad usuarios ── -->
-      <div id="t-users" class="tab-pane">
-        <div class="section-hdr">
-          <span class="dot dot-green"></span>
-          Actividad del sistema por usuario
-        </div>
-        {% if actividad_usuarios %}
-        <div class="card">
-          <div class="tbl-wrap">
-            <table class="iot-tbl">
-              <thead>
-                <tr>
-                  <th>Usuario</th>
-                  <th>Rol</th>
-                  <th>Total operaciones</th>
-                  <th>Tablas afectadas</th>
-                  <th>Última actividad</th>
-                </tr>
-              </thead>
-              <tbody>
-              {% for u in actividad_usuarios %}
-              <tr>
-                <td><strong>{{ u.username }}</strong></td>
-                <td>{{ u.rol_usuario }}</td>
-                <td>{{ u.total_operaciones }}</td>
-                <td>{{ u.tablas_distintas_afectadas }}</td>
-                <td class="ts-dim">{{ u.ultima_actividad or '—' }}</td>
-              </tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        {% else %}
-          <div class="empty-iot">Sin datos de actividad registrados.</div>
-        {% endif %}
-      </div>
 
     </div>
 

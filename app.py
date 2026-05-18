@@ -1072,6 +1072,20 @@ def admin_v():
             cur.execute("SELECT COUNT(*) AS total FROM v_mantenimientos_vencidos")
             n_mants_vencidos = (cur.fetchone() or {}).get("total", 0)
 
+            cur.execute("SELECT * FROM v_mantenimientos_programados_pendientes WHERE alerta = 'vencido' ORDER BY fecha_proximo_mantenimiento ASC")
+            mants_vencidos = to_dicts(cur.fetchall())
+            for m in mants_vencidos:
+                if m.get("fecha_proximo_mantenimiento"):
+                    m["fecha_proximo_mantenimiento"] = m["fecha_proximo_mantenimiento"].strftime("%d/%m/%Y")
+
+            cur.execute("SELECT * FROM v_usos_clinicos_area ORDER BY fecha_hora_inicio DESC LIMIT 50")
+            usos_clinicos_recientes = to_dicts(cur.fetchall())
+            for u in usos_clinicos_recientes:
+                for campo in ("fecha_hora_inicio", "fecha_hora_fin"):
+                    if u.get(campo):
+                        u[campo] = u[campo].strftime("%d/%m %H:%M")
+            areas_uso = sorted({u["nombre_area"] for u in usos_clinicos_recientes if u.get("nombre_area")})
+
             _total_eq_con_area = sum(a["total_equipos"] for a in disp_por_area)
             _total_disp_con_area = sum(a["equipos_disponibles"] for a in disp_por_area)
             global_disp_pct = int((_total_disp_con_area / _total_eq_con_area * 100) if _total_eq_con_area > 0 else 0)
@@ -1170,6 +1184,23 @@ def admin_v():
                 LIMIT 50
             """)
             eventos_gps = to_dicts(cur.fetchall())
+
+            # GPS y traslados activos para la vista Traslados
+            cur.execute("SELECT * FROM v_ambulancias_gps ORDER BY codigo_ambulancia")
+            ambulancias_gps_adm = to_dicts(cur.fetchall())
+            for row in ambulancias_gps_adm:
+                if row.get("ultimo_ping"):
+                    row["ultimo_ping"] = row["ultimo_ping"].strftime("%d/%m %H:%M:%S")
+                if row.get("latitud") is not None:
+                    row["latitud"] = float(row["latitud"])
+                if row.get("longitud") is not None:
+                    row["longitud"] = float(row["longitud"])
+
+            cur.execute("SELECT * FROM v_traslados_activos")
+            traslados_activos_adm = to_dicts(cur.fetchall())
+            for row in traslados_activos_adm:
+                if row.get("fecha_salida"):
+                    row["fecha_salida"] = row["fecha_salida"].strftime("%d/%m/%Y %H:%M")
 
             # Auditoría reciente
             cur.execute("""
@@ -1329,6 +1360,8 @@ def admin_v():
         traslados=traslados, tipos_traslado=tipos_traslado,
         equipos_disponibles=equipos_disponibles,
         nfc_equipos=nfc_equipos, eventos_gps=eventos_gps,
+        ambulancias_gps=ambulancias_gps_adm,
+        traslados_activos=traslados_activos_adm,
         total_disc=total_disc, total_sin_evidencia=total_sin_evidencia,
         discrepancias=discrepancias, sin_evidencia=sin_evidencia,
         eventos_nfc=eventos_nfc, eventos_beacon=eventos_beacon,
@@ -1341,6 +1374,9 @@ def admin_v():
         especialidades_medico=especialidades_medico,
         especialidades_enfermero=especialidades_enfermero,
         areas_registro=areas_registro,
+        mants_vencidos=mants_vencidos,
+        usos_clinicos_recientes=usos_clinicos_recientes,
+        areas_uso=areas_uso,
     )
 
 
@@ -2973,6 +3009,22 @@ def admin_iot():
                 """)
                 actividad_usuarios = to_dicts(cur.fetchall())
 
+                cur.execute("SELECT * FROM v_ambulancias_gps ORDER BY codigo_ambulancia")
+                ambulancias_gps = to_dicts(cur.fetchall())
+                for row in ambulancias_gps:
+                    if row.get("ultimo_ping"):
+                        row["ultimo_ping"] = row["ultimo_ping"].strftime("%d/%m %H:%M:%S")
+                    if row.get("latitud") is not None:
+                        row["latitud"] = float(row["latitud"])
+                    if row.get("longitud") is not None:
+                        row["longitud"] = float(row["longitud"])
+
+                cur.execute("SELECT * FROM v_traslados_activos")
+                traslados_activos = to_dicts(cur.fetchall())
+                for row in traslados_activos:
+                    if row.get("fecha_salida"):
+                        row["fecha_salida"] = row["fecha_salida"].strftime("%d/%m/%Y %H:%M")
+
                 total_disc = sum(
                     1 for d in discrepancias
                     if "alerta" in d.get("resultado", "").lower()
@@ -3001,6 +3053,8 @@ def admin_iot():
             nfc_inactivos=nfc_inactivos,
             zonas_beacon=zonas_beacon,
             equipos_activos=equipos_activos,
+            ambulancias_gps=ambulancias_gps,
+            traslados_activos=traslados_activos,
         )
     except Exception as e:
         flash(f"Error al cargar panel IoT: {friendly_db_error(e)}", "error")
@@ -3323,17 +3377,123 @@ def api_iot_escaneo():
                         id_evento_beacon = cur.fetchone()["id_evento_beacon"]
                         area_beacon = beacon["nombre_zona_beacon"]
 
+                cur.execute("SELECT id_persona FROM usuario WHERE id_usuario = %s", (id_usuario,))
+                user_row = cur.fetchone()
+                id_persona = user_row["id_persona"] if user_row else None
+
+                uso_activo_row = None
+                tipos_proc     = []
+                if id_persona:
+                    cur.execute("""
+                        SELECT uce.id_uso_clinico, tp.tipo_procedimiento,
+                               uce.fecha_hora_inicio
+                        FROM uso_clinico_equipo uce
+                        JOIN tipo_procedimiento tp
+                                ON tp.id_tipo_procedimiento = uce.id_tipo_procedimiento
+                        WHERE uce.id_equipo = %s
+                          AND uce.id_persona_responsable_uso = %s
+                          AND uce.fecha_hora_fin IS NULL
+                        ORDER BY uce.fecha_hora_inicio DESC
+                        LIMIT 1
+                    """, (tag["id_equipo"], id_persona))
+                    uso_activo_row = cur.fetchone()
+
+                    cur.execute("""
+                        SELECT id_tipo_procedimiento, tipo_procedimiento
+                        FROM tipo_procedimiento ORDER BY tipo_procedimiento
+                    """)
+                    tipos_proc = to_dicts(cur.fetchall())
+
             c.commit()
+
+        uso_activo = None
+        if uso_activo_row:
+            uso_activo = dict(uso_activo_row)
+            if uso_activo.get("fecha_hora_inicio"):
+                uso_activo["fecha_hora_inicio"] = uso_activo["fecha_hora_inicio"].strftime("%d/%m %H:%M")
 
         return jsonify(
             ok=True,
             id_evento_nfc=id_evento_nfc,
             id_evento_beacon=id_evento_beacon,
             equipo=dict(tag),
-            area_detectada=area_beacon
+            area_detectada=area_beacon,
+            uso_activo=uso_activo,
+            tipos_proc=tipos_proc,
         )
     except Exception as e:
         return jsonify(ok=False, mensaje=str(e)), 500
+
+
+@app.route("/api/iot/uso/registrar", methods=["POST"])
+def api_iot_uso_registrar():
+    data    = request.get_json(silent=True) or {}
+    token   = data.get("token", "")
+    id_eq   = data.get("id_equipo")
+    id_proc = data.get("id_tipo_procedimiento")
+
+    id_usuario = _verify_mobile_token(token)
+    if not id_usuario:
+        return jsonify(ok=False, mensaje="Token inválido"), 401
+    if not id_eq or not id_proc:
+        return jsonify(ok=False, mensaje="Faltan datos"), 400
+    try:
+        with get_db() as c:
+            with c.cursor() as cur:
+                cur.execute("SELECT id_persona FROM usuario WHERE id_usuario = %s", (id_usuario,))
+                u = cur.fetchone()
+                id_persona = u["id_persona"] if u else None
+
+                cur.execute("""
+                    SELECT ue.id_area FROM equipo e
+                    JOIN ubicacion_especifica ue ON ue.id_ubicacion = e.id_ubicacion_administrativa_actual
+                    WHERE e.id_equipo = %s
+                """, (int(id_eq),))
+                a = cur.fetchone()
+                id_area = a["id_area"] if a else 1
+
+                cur.execute("""
+                    SELECT id_turno FROM enfermero WHERE id_persona = %s
+                    UNION
+                    SELECT id_turno FROM medico WHERE id_persona = %s
+                    LIMIT 1
+                """, (id_persona, id_persona))
+                t = cur.fetchone()
+                id_turno = t["id_turno"] if t else 1
+
+                set_audit_context(cur, "flutter_movil")
+                cur.execute(
+                    "CALL sp_registrar_uso_clinico(%s,%s,%s,%s,%s,%s,NULL,%s,%s)",
+                    (id_usuario, int(id_eq), id_persona, id_area, id_turno,
+                     int(id_proc), None, "flutter_movil")
+                )
+            c.commit()
+        return jsonify(ok=True, mensaje="Uso clínico registrado")
+    except Exception as e:
+        return jsonify(ok=False, mensaje=friendly_db_error(e)), 500
+
+
+@app.route("/api/iot/uso/cerrar", methods=["POST"])
+def api_iot_uso_cerrar():
+    data   = request.get_json(silent=True) or {}
+    token  = data.get("token", "")
+    id_uso = data.get("id_uso_clinico")
+
+    id_usuario = _verify_mobile_token(token)
+    if not id_usuario:
+        return jsonify(ok=False, mensaje="Token inválido"), 401
+    if not id_uso:
+        return jsonify(ok=False, mensaje="ID de uso requerido"), 400
+    try:
+        with get_db() as c:
+            with c.cursor() as cur:
+                set_audit_context(cur, "flutter_movil")
+                cur.execute("CALL sp_cerrar_uso_clinico(%s,%s,NULL,%s)",
+                    (id_usuario, int(id_uso), "flutter_movil"))
+            c.commit()
+        return jsonify(ok=True, mensaje="Uso clínico cerrado")
+    except Exception as e:
+        return jsonify(ok=False, mensaje=friendly_db_error(e)), 500
 
 
 @app.route("/api/nfc/evento", methods=["POST"])
@@ -4165,6 +4325,75 @@ def api_beacon_estado():
     )
 
 
+# ── Receptor GPS OsmAnd (Traccar Client) ────────────────────────────────────
+@app.route("/api/gps/osmand", methods=["GET", "POST"])
+def api_gps_osmand():
+    """
+    Traccar Client (protocolo OsmAnd) envía:
+      GET /api/gps/osmand?id=GPS-AMB-001&lat=25.6&lon=-100.3&accuracy=8&timestamp=1234567890
+    """
+    # Intenta leer de query string (OsmAnd clásico o JSON con ?id=)
+    codigo = (request.args.get("id") or request.form.get("id") or "").strip()
+    lat = request.args.get("lat")
+    lon = request.args.get("lon")
+    acc = request.args.get("accuracy")
+
+    # Si no vienen en query string, intenta JSON body (Traccar iOS)
+    if not lat or not lon:
+        try:
+            body = request.get_json(force=True, silent=True) or {}
+            coords = body.get("location", {}).get("coords", {})
+            lat = coords.get("latitude")
+            lon = coords.get("longitude")
+            acc = coords.get("accuracy")
+        except Exception:
+            pass
+
+    if not codigo or lat is None or lon is None:
+        return ("", 400)
+
+    try:
+        with get_db() as c:
+            with c.cursor() as cur:
+                cur.execute(
+                    "SELECT id_gps FROM dispositivo_gps "
+                    "WHERE codigo_gps = %s AND activo_gps = TRUE",
+                    (codigo,)
+                )
+                row = cur.fetchone()
+                if not row:
+                    return ("", 404)
+
+                cur.execute(
+                    """
+                    INSERT INTO evento_gps
+                        (id_gps, fecha_hora_evento, latitud, longitud, precision)
+                    VALUES (%s, NOW(), %s, %s, %s)
+                    """,
+                    (row["id_gps"], float(lat), float(lon),
+                     float(acc) if acc is not None else None)
+                )
+            c.commit()
+        return ("", 200)
+    except Exception as e:
+        print("GPS ERROR:", e)
+        return ("", 500)
+
+
+@app.route("/api/traslado/cerrar/<int:id_traslado>", methods=["POST"])
+@login_required
+@role_required("administrador")
+def api_cerrar_traslado(id_traslado):
+    try:
+        with get_db() as c:
+            with c.cursor() as cur:
+                cur.execute("CALL sp_cerrar_traslado(%s)", (id_traslado,))
+            c.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+
 # ── Login dedicado para flujo NFC ───────────────────────────────────────────
 @app.route("/nfc-login", methods=["GET", "POST"])
 def nfc_login_page():
@@ -4258,7 +4487,33 @@ def api_nfc_movil():
                     """, (id_beacon, tag["id_equipo"]))
                     id_evento_beacon = cur.fetchone()["id_evento_beacon"]
 
+                cur.execute("""
+                    SELECT uce.id_uso_clinico, tp.tipo_procedimiento,
+                           uce.fecha_hora_inicio
+                    FROM uso_clinico_equipo uce
+                    JOIN tipo_procedimiento tp
+                            ON tp.id_tipo_procedimiento = uce.id_tipo_procedimiento
+                    WHERE uce.id_equipo = %s
+                      AND uce.id_persona_responsable_uso = %s
+                      AND uce.fecha_hora_fin IS NULL
+                    ORDER BY uce.fecha_hora_inicio DESC
+                    LIMIT 1
+                """, (tag["id_equipo"], session["id_persona"]))
+                uso_activo = cur.fetchone()
+
+                cur.execute("""
+                    SELECT id_tipo_procedimiento, tipo_procedimiento
+                    FROM tipo_procedimiento ORDER BY tipo_procedimiento
+                """)
+                tipos_proc = to_dicts(cur.fetchall())
+
             c.commit()
+
+        uso_activo_dict = None
+        if uso_activo:
+            uso_activo_dict = dict(uso_activo)
+            if uso_activo_dict.get("fecha_hora_inicio"):
+                uso_activo_dict["fecha_hora_inicio"] = uso_activo_dict["fecha_hora_inicio"].strftime("%d/%m %H:%M")
 
         return jsonify(
             ok=True,
@@ -4267,7 +4522,68 @@ def api_nfc_movil():
             beacon_activo=beacon_activo,
             id_evento_nfc=id_evento_nfc,
             id_evento_beacon=id_evento_beacon,
+            uso_activo=uso_activo_dict,
+            tipos_proc=tipos_proc,
         )
+    except Exception as e:
+        return jsonify(ok=False, mensaje=friendly_db_error(e)), 500
+
+
+@app.route("/api/movil/uso/registrar", methods=["POST"])
+@login_required
+def api_movil_uso_registrar():
+    data    = request.get_json(silent=True) or {}
+    id_eq   = data.get("id_equipo")
+    id_proc = data.get("id_tipo_procedimiento")
+    if not id_eq or not id_proc:
+        return jsonify(ok=False, mensaje="Faltan datos"), 400
+    try:
+        with get_db() as c:
+            with c.cursor() as cur:
+                cur.execute("""
+                    SELECT ue.id_area FROM equipo e
+                    JOIN ubicacion_especifica ue ON ue.id_ubicacion = e.id_ubicacion_administrativa_actual
+                    WHERE e.id_equipo = %s
+                """, (int(id_eq),))
+                a = cur.fetchone()
+                id_area = a["id_area"] if a else 1
+
+                cur.execute("""
+                    SELECT id_turno FROM enfermero WHERE id_persona = %s
+                    UNION
+                    SELECT id_turno FROM medico WHERE id_persona = %s
+                    LIMIT 1
+                """, (session["id_persona"], session["id_persona"]))
+                t = cur.fetchone()
+                id_turno = t["id_turno"] if t else 1
+
+                set_audit_context(cur, "web_movil")
+                cur.execute(
+                    "CALL sp_registrar_uso_clinico(%s,%s,%s,%s,%s,%s,NULL,%s,%s)",
+                    (session["id_usuario"], int(id_eq), session["id_persona"],
+                     id_area, id_turno, int(id_proc), None, "web_movil")
+                )
+            c.commit()
+        return jsonify(ok=True, mensaje="Uso clínico registrado correctamente")
+    except Exception as e:
+        return jsonify(ok=False, mensaje=friendly_db_error(e)), 500
+
+
+@app.route("/api/movil/uso/cerrar", methods=["POST"])
+@login_required
+def api_movil_uso_cerrar():
+    data   = request.get_json(silent=True) or {}
+    id_uso = data.get("id_uso_clinico")
+    if not id_uso:
+        return jsonify(ok=False, mensaje="ID de uso requerido"), 400
+    try:
+        with get_db() as c:
+            with c.cursor() as cur:
+                set_audit_context(cur, "web_movil")
+                cur.execute("CALL sp_cerrar_uso_clinico(%s,%s,NULL,%s)",
+                    (session["id_usuario"], int(id_uso), "web_movil"))
+            c.commit()
+        return jsonify(ok=True, mensaje="Uso clínico cerrado correctamente")
     except Exception as e:
         return jsonify(ok=False, mensaje=friendly_db_error(e)), 500
 

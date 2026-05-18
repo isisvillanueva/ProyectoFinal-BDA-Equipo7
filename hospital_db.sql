@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict BuAo9hq1T8QP3a6bHbhfL8X5z9cxY6BOEd9ozQdbkrug4uh1htyzVjoQ1eqCTga
+\restrict lU8GIEmB7vLzesRRwznUOhFyxoOPXe5ebp58V2xJaz3YJbi4m4sqEq4lR9Dj2No
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13
@@ -1160,6 +1160,28 @@ $$;
 
 
 ALTER PROCEDURE public.sp_cerrar_asignacion_equipo(IN p_id_usuario integer, IN p_id_asignacion integer, OUT p_mensaje text, IN p_observacion text, IN p_origen text) OWNER TO postgres;
+
+--
+-- Name: sp_cerrar_traslado(integer); Type: PROCEDURE; Schema: public; Owner: postgres
+--
+
+CREATE PROCEDURE public.sp_cerrar_traslado(IN p_id_traslado integer)
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    UPDATE traslado_externo_equipo
+    SET fecha_llegada = NOW()
+    WHERE id_traslado_externo = p_id_traslado
+      AND fecha_llegada IS NULL;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Traslado % no encontrado o ya cerrado', p_id_traslado;
+    END IF;
+END;
+$$;
+
+
+ALTER PROCEDURE public.sp_cerrar_traslado(IN p_id_traslado integer) OWNER TO postgres;
 
 --
 -- Name: sp_cerrar_uso_clinico(integer, integer, text); Type: PROCEDURE; Schema: public; Owner: postgres
@@ -3715,6 +3737,38 @@ CREATE VIEW public.v_alertas_preventivas AS
 ALTER VIEW public.v_alertas_preventivas OWNER TO postgres;
 
 --
+-- Name: v_ambulancias_gps; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.v_ambulancias_gps AS
+ SELECT a.id_ambulancia,
+    a.codigo_ambulancia,
+    a.placa,
+    ea.estado_ambulancia,
+    a.activo_ambulancia,
+    dg.id_gps,
+    dg.codigo_gps,
+    dg.activo_gps,
+    eg.latitud,
+    eg.longitud,
+    eg."precision" AS precision_gps,
+    eg.fecha_hora_evento AS ultimo_ping
+   FROM (((public.ambulancia a
+     JOIN public.estado_ambulancias ea ON ((ea.id_estado_ambulancia = a.id_estado_ambulancia)))
+     LEFT JOIN public.dispositivo_gps dg ON ((dg.id_ambulancia = a.id_ambulancia)))
+     LEFT JOIN LATERAL ( SELECT evento_gps.latitud,
+            evento_gps.longitud,
+            evento_gps."precision",
+            evento_gps.fecha_hora_evento
+           FROM public.evento_gps
+          WHERE (evento_gps.id_gps = dg.id_gps)
+          ORDER BY evento_gps.fecha_hora_evento DESC
+         LIMIT 1) eg ON (true));
+
+
+ALTER VIEW public.v_ambulancias_gps OWNER TO postgres;
+
+--
 -- Name: v_asignaciones_activas; Type: VIEW; Schema: public; Owner: postgres
 --
 
@@ -4515,6 +4569,32 @@ CREATE VIEW public.v_resumen_actividad_equipos AS
 ALTER VIEW public.v_resumen_actividad_equipos OWNER TO postgres;
 
 --
+-- Name: v_traslados_activos; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.v_traslados_activos AS
+ SELECT te.id_traslado_externo,
+    te.fecha_salida,
+    e.nombre_equipo,
+    e.codigo_interno,
+    a.codigo_ambulancia,
+    a.placa,
+    (((p.nombre_persona)::text || ' '::text) || (p.apellido_persona)::text) AS conductor,
+    tt.tipo_traslado,
+    te.motivo_traslado,
+    te.observacion_traslado
+   FROM ((((public.traslado_externo_equipo te
+     JOIN public.equipo e ON ((e.id_equipo = te.id_equipo)))
+     JOIN public.ambulancia a ON ((a.id_ambulancia = te.id_ambulancia)))
+     JOIN public.persona p ON ((p.id_persona = te.id_persona_conductor)))
+     JOIN public.tipo_traslado_externo tt ON ((tt.id_tipo_traslado = te.id_tipo_traslado)))
+  WHERE (te.fecha_llegada IS NULL)
+  ORDER BY te.fecha_salida DESC;
+
+
+ALTER VIEW public.v_traslados_activos OWNER TO postgres;
+
+--
 -- Name: v_ultimo_movimiento_equipos_criticos; Type: VIEW; Schema: public; Owner: postgres
 --
 
@@ -5094,6 +5174,10 @@ COPY public.auditoria (id_auditoria, id_usuario, fecha_hora_auditoria, accion_au
 149	4	2026-05-16 15:07:17.027499	UPDATE	equipo	2	{"id_equipo": 2, "id_modelo": 4, "numero_serie": "SN-DR-2024-002", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita", "codigo_interno": "EQ-002", "id_tipo_equipo": 4, "id_estado_equipo": 3, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 3}	{"id_equipo": 2, "id_modelo": 4, "numero_serie": "SN-DR-2024-002", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita", "codigo_interno": "EQ-002", "id_tipo_equipo": 4, "id_estado_equipo": 3, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 6}	sistema
 150	4	2026-05-16 15:07:17.027499	INSERT	movimiento	13	\N	{"id_equipo": 2, "id_movimiento": 13, "motivo_movimiento": "Equipo en mantenimiento trasladado a Bodega Biomédica", "id_tipo_movimiento": 1, "id_ubicacion_origen": 3, "id_ubicacion_destino": 6, "fecha_hora_movimiento": "2026-05-16T15:07:17.027499", "observacion_movimiento": "Corrección de ubicación: ventilador en mantenimiento debe estar en bodega biomédica, no en área clínica", "id_persona_responsable_movimiento": 4}	sistema
 151	1	2026-05-16 21:30:43.664428	INSERT	equipo	21	\N	{"id_equipo": 21, "id_modelo": 4, "numero_serie": "SN-DR-2026-012", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita C", "codigo_interno": "EQ-012", "id_tipo_equipo": 4, "id_estado_equipo": 1, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 5}	web_admin
+152	9	2026-05-17 14:16:57.62747	UPDATE	equipo	21	{"id_equipo": 21, "id_modelo": 4, "numero_serie": "SN-DR-2026-012", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita C", "codigo_interno": "EQ-012", "id_tipo_equipo": 4, "id_estado_equipo": 1, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 5}	{"id_equipo": 21, "id_modelo": 4, "numero_serie": "SN-DR-2026-012", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita C", "codigo_interno": "EQ-012", "id_tipo_equipo": 4, "id_estado_equipo": 2, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 5}	flutter_movil
+153	9	2026-05-17 14:27:55.36769	UPDATE	equipo	21	{"id_equipo": 21, "id_modelo": 4, "numero_serie": "SN-DR-2026-012", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita C", "codigo_interno": "EQ-012", "id_tipo_equipo": 4, "id_estado_equipo": 2, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 5}	{"id_equipo": 21, "id_modelo": 4, "numero_serie": "SN-DR-2026-012", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita C", "codigo_interno": "EQ-012", "id_tipo_equipo": 4, "id_estado_equipo": 1, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 5}	flutter_movil
+154	9	2026-05-17 14:32:22.070984	UPDATE	equipo	21	{"id_equipo": 21, "id_modelo": 4, "numero_serie": "SN-DR-2026-012", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita C", "codigo_interno": "EQ-012", "id_tipo_equipo": 4, "id_estado_equipo": 1, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 5}	{"id_equipo": 21, "id_modelo": 4, "numero_serie": "SN-DR-2026-012", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita C", "codigo_interno": "EQ-012", "id_tipo_equipo": 4, "id_estado_equipo": 2, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 5}	flutter_movil
+155	9	2026-05-17 14:32:45.154803	UPDATE	equipo	21	{"id_equipo": 21, "id_modelo": 4, "numero_serie": "SN-DR-2026-012", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita C", "codigo_interno": "EQ-012", "id_tipo_equipo": 4, "id_estado_equipo": 2, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 5}	{"id_equipo": 21, "id_modelo": 4, "numero_serie": "SN-DR-2026-012", "activo_equipo": true, "nombre_equipo": "Ventilador Dräger Evita C", "codigo_interno": "EQ-012", "id_tipo_equipo": 4, "id_estado_equipo": 1, "id_criticidad_equipo": 1, "id_ubicacion_administrativa_actual": 5}	flutter_movil
 \.
 
 
@@ -5309,6 +5393,24 @@ COPY public.evento_beacon (id_evento_beacon, id_beacon, id_equipo, fecha_hora_ev
 7	1	1	2026-03-01 08:00:00	3
 8	2	5	2026-02-10 15:00:00	1
 9	8	21	2026-05-17 04:40:19.429817	1
+10	8	21	2026-05-17 12:39:59.550822	1
+11	8	21	2026-05-17 12:59:35.968938	1
+12	8	21	2026-05-17 13:06:14.486825	1
+13	8	21	2026-05-17 13:07:15.780725	1
+14	8	21	2026-05-17 13:08:06.281659	1
+15	8	21	2026-05-17 13:08:08.78919	1
+16	8	21	2026-05-17 13:08:10.643449	1
+17	8	21	2026-05-17 13:14:03.028161	1
+18	8	21	2026-05-17 13:14:10.668848	1
+19	8	21	2026-05-17 14:04:02.066532	1
+20	8	21	2026-05-17 14:06:22.532207	1
+21	8	21	2026-05-17 14:09:07.979438	1
+22	8	21	2026-05-17 14:16:49.970858	1
+23	8	21	2026-05-17 14:17:51.270267	1
+24	8	21	2026-05-17 14:18:20.898344	1
+25	8	21	2026-05-17 14:27:51.481176	1
+26	8	21	2026-05-17 14:32:12.668904	1
+27	8	21	2026-05-17 14:32:39.16097	1
 \.
 
 
@@ -5327,6 +5429,129 @@ COPY public.evento_gps (id_evento_gps, id_gps, fecha_hora_evento, latitud, longi
 9	1	2026-03-01 14:00:00	25.6710	-100.3095	5.0
 10	2	2026-03-10 09:00:00	25.6718	-100.3088	4.2
 11	2	2026-03-10 09:30:00	25.6722	-100.3082	3.5
+12	1	2026-05-17 17:08:34.695512	25.79473006026952	-100.1806352884656	11.77
+13	1	2026-05-17 17:08:34.96311	25.79473006026952	-100.1806352884656	11.9
+14	1	2026-05-17 17:08:35.202102	25.79473006026952	-100.1806352884656	11.9
+15	1	2026-05-17 17:08:35.442373	25.79473006026952	-100.1806352884656	11.9
+16	1	2026-05-17 17:08:35.679302	25.79473006026952	-100.1806352884656	11.9
+17	1	2026-05-17 17:08:35.915845	25.79473006026952	-100.1806352884656	11.9
+18	1	2026-05-17 17:08:36.16468	25.79473006026952	-100.1806352884656	11.9
+19	1	2026-05-17 17:08:36.405938	25.79473006026952	-100.1806352884656	11.9
+20	1	2026-05-17 17:08:36.650613	25.79473006026952	-100.1806352884656	11.9
+21	1	2026-05-17 17:08:36.889426	25.79473006026952	-100.1806352884656	11.9
+22	1	2026-05-17 17:08:37.134348	25.79473006026952	-100.1806352884656	11.9
+23	1	2026-05-17 17:08:37.404373	25.79473006026952	-100.1806352884656	11.9
+24	1	2026-05-17 17:08:37.651639	25.79473006026952	-100.1806352884656	11.9
+25	1	2026-05-17 17:08:37.929358	25.79473006026952	-100.1806352884656	11.9
+26	1	2026-05-17 17:08:38.19893	25.79473006026952	-100.1806352884656	11.9
+27	1	2026-05-17 17:08:38.45526	25.79473006026952	-100.1806352884656	11.9
+28	1	2026-05-17 17:08:38.696715	25.79473006026952	-100.1806352884656	11.9
+29	1	2026-05-17 17:08:38.947905	25.79473006026952	-100.1806352884656	11.9
+30	1	2026-05-17 17:08:39.1852	25.79473006026952	-100.1806352884656	11.9
+31	1	2026-05-17 17:08:39.434385	25.79473006026952	-100.1806352884656	11.9
+32	1	2026-05-17 17:08:39.674631	25.79473006026952	-100.1806352884656	11.9
+33	1	2026-05-17 17:08:39.920873	25.79473006026952	-100.1806352884656	11.9
+34	1	2026-05-17 17:08:40.168906	25.79473006026952	-100.1806352884656	11.9
+35	1	2026-05-17 17:08:40.413155	25.79473006026952	-100.1806352884656	11.9
+36	1	2026-05-17 17:08:40.65214	25.79473006026952	-100.1806352884656	11.9
+37	1	2026-05-17 17:08:40.906513	25.79473006026952	-100.1806352884656	11.9
+38	1	2026-05-17 17:08:41.168557	25.79473006026952	-100.1806352884656	11.9
+39	1	2026-05-17 17:08:41.412953	25.79473006026952	-100.1806352884656	11.9
+40	1	2026-05-17 17:08:41.65873	25.79473006026952	-100.1806352884656	11.9
+41	1	2026-05-17 17:08:41.90177	25.79473006026952	-100.1806352884656	11.9
+42	1	2026-05-17 17:08:42.180071	25.79473006026952	-100.1806352884656	11.9
+43	1	2026-05-17 17:08:42.43362	25.79473006026952	-100.1806352884656	11.9
+44	1	2026-05-17 17:08:42.688016	25.79473006026952	-100.1806352884656	11.9
+45	1	2026-05-17 17:08:42.930911	25.79473006026952	-100.1806352884656	11.9
+46	1	2026-05-17 17:08:43.175599	25.79473006026952	-100.1806352884656	11.9
+47	1	2026-05-17 17:08:43.440024	25.79473006026952	-100.1806352884656	11.9
+48	1	2026-05-17 17:08:43.690389	25.79473006026952	-100.1806352884656	11.9
+49	1	2026-05-17 17:08:43.945184	25.79473006026952	-100.1806352884656	11.9
+50	1	2026-05-17 17:08:44.187977	25.79473006026952	-100.1806352884656	11.9
+51	1	2026-05-17 17:08:44.437307	25.79473006026952	-100.1806352884656	11.9
+52	1	2026-05-17 17:08:44.682267	25.79473006026952	-100.1806352884656	11.9
+53	1	2026-05-17 17:08:44.941834	25.79473006026952	-100.1806352884656	11.9
+54	1	2026-05-17 17:08:45.189424	25.79473006026952	-100.1806352884656	11.9
+55	1	2026-05-17 17:08:45.449327	25.79473006026952	-100.1806352884656	11.9
+56	1	2026-05-17 17:08:45.684914	25.79473006026952	-100.1806352884656	11.9
+57	1	2026-05-17 17:08:45.924142	25.79473006026952	-100.1806352884656	11.9
+58	1	2026-05-17 17:08:46.180884	25.79473006026952	-100.1806352884656	11.9
+59	1	2026-05-17 17:08:46.420739	25.79473006026952	-100.1806352884656	11.9
+60	1	2026-05-17 17:08:46.653617	25.79473006026952	-100.1806352884656	11.9
+61	1	2026-05-17 17:08:46.88802	25.79473006026952	-100.1806352884656	11.9
+62	1	2026-05-17 17:08:47.125736	25.79473006026952	-100.1806352884656	11.9
+63	1	2026-05-17 17:08:47.368713	25.79473006026952	-100.1806352884656	11.9
+64	1	2026-05-17 17:08:47.618277	25.79473006026952	-100.1806352884656	11.9
+65	1	2026-05-17 17:08:47.863905	25.79473006026952	-100.1806352884656	11.9
+66	1	2026-05-17 17:08:48.112637	25.79473006026952	-100.1806352884656	11.9
+67	1	2026-05-17 17:08:48.356842	25.79473006026952	-100.1806352884656	11.9
+68	1	2026-05-17 17:08:48.605998	25.79473006026952	-100.1806352884656	11.9
+69	1	2026-05-17 17:08:48.843955	25.79473006026952	-100.1806352884656	11.9
+70	1	2026-05-17 17:08:49.091978	25.79473006026952	-100.1806352884656	11.9
+71	1	2026-05-17 17:08:49.335852	25.79473006026952	-100.1806352884656	11.9
+72	1	2026-05-17 17:08:49.579237	25.79473006026952	-100.1806352884656	11.9
+73	1	2026-05-17 17:08:49.823853	25.79473006026952	-100.1806352884656	11.9
+74	1	2026-05-17 17:08:50.065913	25.79473006026952	-100.1806352884656	11.9
+75	1	2026-05-17 17:08:50.317502	25.79473006026952	-100.1806352884656	11.9
+76	1	2026-05-17 17:08:50.564157	25.79473006026952	-100.1806352884656	11.9
+77	1	2026-05-17 17:08:50.801995	25.79473006026952	-100.1806352884656	11.9
+78	1	2026-05-17 17:08:51.035685	25.79473006026952	-100.1806352884656	11.9
+79	1	2026-05-17 17:08:51.283473	25.79473006026952	-100.1806352884656	11.9
+80	1	2026-05-17 17:08:51.540727	25.79473006026952	-100.1806352884656	11.9
+81	1	2026-05-17 17:08:51.78144	25.79473006026952	-100.1806352884656	11.9
+82	1	2026-05-17 17:08:52.026102	25.79473006026952	-100.1806352884656	11.9
+83	1	2026-05-17 17:08:52.276121	25.79473006026952	-100.1806352884656	11.9
+84	1	2026-05-17 17:08:52.51876	25.79473006026952	-100.1806352884656	11.9
+85	1	2026-05-17 17:08:52.76697	25.79473006026952	-100.1806352884656	11.9
+86	1	2026-05-17 17:08:53.018125	25.79473006026952	-100.1806352884656	11.9
+87	1	2026-05-17 17:08:53.269548	25.79473006026952	-100.1806352884656	11.9
+88	1	2026-05-17 17:10:00.209105	25.79473006026952	-100.1806352884656	11.9
+89	1	2026-05-17 17:10:00.470289	25.79473006026952	-100.1806352884656	11.9
+90	1	2026-05-17 17:10:00.739628	25.79473006026952	-100.1806352884656	11.9
+91	1	2026-05-17 17:10:00.992282	25.79473006026952	-100.1806352884656	11.9
+92	1	2026-05-17 17:10:01.241224	25.79473006026952	-100.1806352884656	11.9
+93	1	2026-05-17 17:10:01.492159	25.79473006026952	-100.1806352884656	11.9
+94	1	2026-05-17 17:10:01.736917	25.79473006026952	-100.1806352884656	11.9
+95	1	2026-05-17 17:10:01.991739	25.79473006026952	-100.1806352884656	11.9
+96	1	2026-05-17 17:10:02.234428	25.79473006026952	-100.1806352884656	11.9
+97	1	2026-05-17 17:10:02.498791	25.79473006026952	-100.1806352884656	11.9
+98	1	2026-05-17 17:10:02.767307	25.79473006026952	-100.1806352884656	11.9
+99	1	2026-05-17 17:10:03.02742	25.79473006026952	-100.1806352884656	11.9
+100	1	2026-05-17 17:10:03.280282	25.79473006026952	-100.1806352884656	11.9
+101	1	2026-05-17 17:10:03.538064	25.79473006026952	-100.1806352884656	11.9
+102	1	2026-05-17 17:10:03.791854	25.79473006026952	-100.1806352884656	11.9
+103	1	2026-05-17 17:10:04.043847	25.79473006026952	-100.1806352884656	11.9
+104	1	2026-05-17 17:10:10.083788	25.79473006026952	-100.1806352884656	11.9
+105	1	2026-05-17 17:10:12.399467	25.79473006026952	-100.1806352884656	11.9
+106	1	2026-05-17 17:11:00.251437	25.79473006026952	-100.1806352884656	11.9
+107	1	2026-05-17 17:12:00.183054	25.79473006026952	-100.1806352884656	11.9
+108	1	2026-05-17 17:16:00.255372	25.79473006026952	-100.1806352884656	11.9
+109	1	2026-05-17 17:16:00.508727	25.79473006026952	-100.1806352884656	11.9
+110	1	2026-05-17 17:16:00.76422	25.79473006026952	-100.1806352884656	11.9
+111	1	2026-05-17 17:16:01.018698	25.79473006026952	-100.1806352884656	11.9
+112	1	2026-05-17 17:17:00.18795	25.79473006026952	-100.1806352884656	11.9
+113	1	2026-05-17 17:18:00.314644	25.79473006026952	-100.1806352884656	11.9
+114	1	2026-05-17 17:19:00.243066	25.79473006026952	-100.1806352884656	11.9
+115	1	2026-05-17 17:20:00.280041	25.79473006026952	-100.1806352884656	11.9
+116	1	2026-05-17 17:21:00.196315	25.79473006026952	-100.1806352884656	11.9
+117	1	2026-05-17 19:46:00.167957	25.79473006026952	-100.1806352884656	11.9
+118	1	2026-05-17 19:46:02.640061	25.79473006026952	-100.1806352884656	11.9
+119	1	2026-05-17 19:47:02.513268	25.79473006026952	-100.1806352884656	11.9
+120	1	2026-05-17 19:48:02.585613	25.79473006026952	-100.1806352884656	11.9
+121	1	2026-05-17 19:49:02.494424	25.79473006026952	-100.1806352884656	11.9
+122	1	2026-05-17 19:50:02.636284	25.79473006026952	-100.1806352884656	11.9
+123	1	2026-05-17 19:51:02.634213	25.79473006026952	-100.1806352884656	11.9
+124	1	2026-05-17 19:52:02.529989	25.79473006026952	-100.1806352884656	11.9
+125	1	2026-05-17 19:53:02.667149	25.79473006026952	-100.1806352884656	11.9
+126	1	2026-05-17 19:54:02.717027	25.79473006026952	-100.1806352884656	11.9
+127	1	2026-05-17 19:55:02.509772	25.79473006026952	-100.1806352884656	11.9
+128	1	2026-05-17 19:56:02.609872	25.79473006026952	-100.1806352884656	11.9
+129	1	2026-05-17 19:57:02.641194	25.79473006026952	-100.1806352884656	11.9
+130	1	2026-05-17 19:58:02.615807	25.79473006026952	-100.1806352884656	11.9
+131	1	2026-05-17 19:59:02.620668	25.79473006026952	-100.1806352884656	11.9
+132	1	2026-05-17 20:00:02.649469	25.79473006026952	-100.1806352884656	11.9
+133	1	2026-05-17 20:01:02.547682	25.79473006026952	-100.1806352884656	11.9
+134	1	2026-05-17 20:02:02.574886	25.79473006026952	-100.1806352884656	11.9
 \.
 
 
@@ -5355,6 +5580,24 @@ COPY public.evento_nfc (id_evento_nfc, id_nfc, fecha_hora_evento, id_tipo_evento
 18	12	2026-05-17 01:12:32.726338	1
 19	12	2026-05-17 03:41:38.482484	1
 20	12	2026-05-17 04:40:19.429817	1
+21	12	2026-05-17 12:39:59.550822	1
+22	12	2026-05-17 12:59:35.968938	1
+23	12	2026-05-17 13:06:14.486825	1
+24	12	2026-05-17 13:07:15.780725	1
+25	12	2026-05-17 13:08:06.281659	1
+26	12	2026-05-17 13:08:08.78919	1
+27	12	2026-05-17 13:08:10.643449	1
+28	12	2026-05-17 13:14:03.028161	1
+29	12	2026-05-17 13:14:10.668848	1
+30	12	2026-05-17 14:04:02.066532	1
+31	12	2026-05-17 14:06:22.532207	1
+32	12	2026-05-17 14:09:07.979438	1
+33	12	2026-05-17 14:16:49.970858	1
+34	12	2026-05-17 14:17:51.270267	1
+35	12	2026-05-17 14:18:20.898344	1
+36	12	2026-05-17 14:27:51.481176	1
+37	12	2026-05-17 14:32:12.668904	1
+38	12	2026-05-17 14:32:39.16097	1
 \.
 
 
@@ -5646,6 +5889,8 @@ COPY public.uso_clinico_equipo (id_uso_clinico, id_equipo, id_persona_responsabl
 14	7	6	2026-03-10 15:00:00	2026-03-10 23:00:00	2	2	2	Infusion de nutricion parenteral
 15	10	2	2026-03-25 09:00:00	2026-03-25 09:15:00	4	1	4	Reanimacion de emergencia paciente con fibrilacion
 21	20	15	2026-05-15 19:59:26.560466	\N	2	1	1	\N
+22	21	9	2026-05-17 14:16:57.62747	2026-05-17 14:27:55.36769	3	1	5	\N
+23	21	9	2026-05-17 14:32:22.070984	2026-05-17 14:32:45.154803	3	1	5	\N
 \.
 
 
@@ -5725,7 +5970,7 @@ SELECT pg_catalog.setval('public.asignacion_equipo_id_asignacion_seq', 17, true)
 -- Name: auditoria_id_auditoria_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.auditoria_id_auditoria_seq', 151, true);
+SELECT pg_catalog.setval('public.auditoria_id_auditoria_seq', 155, true);
 
 
 --
@@ -5830,21 +6075,21 @@ SELECT pg_catalog.setval('public.estado_equipos_id_estado_equipo_seq', 5, true);
 -- Name: evento_beacon_id_evento_beacon_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.evento_beacon_id_evento_beacon_seq', 9, true);
+SELECT pg_catalog.setval('public.evento_beacon_id_evento_beacon_seq', 27, true);
 
 
 --
 -- Name: evento_gps_id_evento_gps_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.evento_gps_id_evento_gps_seq', 11, true);
+SELECT pg_catalog.setval('public.evento_gps_id_evento_gps_seq', 134, true);
 
 
 --
 -- Name: evento_nfc_id_evento_nfc_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.evento_nfc_id_evento_nfc_seq', 20, true);
+SELECT pg_catalog.setval('public.evento_nfc_id_evento_nfc_seq', 38, true);
 
 
 --
@@ -5998,7 +6243,7 @@ SELECT pg_catalog.setval('public.ubicacion_especifica_id_ubicacion_seq', 7, true
 -- Name: uso_clinico_equipo_id_uso_clinico_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.uso_clinico_equipo_id_uso_clinico_seq', 21, true);
+SELECT pg_catalog.setval('public.uso_clinico_equipo_id_uso_clinico_seq', 23, true);
 
 
 --
@@ -6993,7 +7238,7 @@ CREATE TRIGGER trg_validar_conductor_autorizado_traslado BEFORE INSERT OR UPDATE
 -- Name: uso_clinico_equipo trg_validar_equipo_disponible_para_uso; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TRIGGER trg_validar_equipo_disponible_para_uso BEFORE INSERT OR UPDATE ON public.uso_clinico_equipo FOR EACH ROW EXECUTE FUNCTION public.fn_validar_equipo_disponible_para_uso();
+CREATE TRIGGER trg_validar_equipo_disponible_para_uso BEFORE INSERT ON public.uso_clinico_equipo FOR EACH ROW EXECUTE FUNCTION public.fn_validar_equipo_disponible_para_uso();
 
 
 --
@@ -7865,6 +8110,13 @@ GRANT ALL ON PROCEDURE public.sp_cerrar_asignacion_equipo(IN p_id_usuario intege
 
 
 --
+-- Name: PROCEDURE sp_cerrar_traslado(IN p_id_traslado integer); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON PROCEDURE public.sp_cerrar_traslado(IN p_id_traslado integer) TO hospital_user;
+
+
+--
 -- Name: PROCEDURE sp_cerrar_uso_clinico(IN p_id_usuario integer, IN p_id_uso_clinico integer, OUT p_mensaje text, IN p_origen text); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -8607,6 +8859,13 @@ GRANT ALL ON TABLE public.v_alertas_preventivas TO hospital_user;
 
 
 --
+-- Name: TABLE v_ambulancias_gps; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.v_ambulancias_gps TO hospital_user;
+
+
+--
 -- Name: TABLE v_asignaciones_activas; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -8789,6 +9048,13 @@ GRANT ALL ON TABLE public.v_resumen_actividad_equipos TO hospital_user;
 
 
 --
+-- Name: TABLE v_traslados_activos; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.v_traslados_activos TO hospital_user;
+
+
+--
 -- Name: TABLE v_ultimo_movimiento_equipos_criticos; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -8841,5 +9107,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict BuAo9hq1T8QP3a6bHbhfL8X5z9cxY6BOEd9ozQdbkrug4uh1htyzVjoQ1eqCTga
+\unrestrict lU8GIEmB7vLzesRRwznUOhFyxoOPXe5ebp58V2xJaz3YJbi4m4sqEq4lR9Dj2No
 
