@@ -136,17 +136,22 @@ Usa la URL pública generada en la configuración de la APK y en Traccar Client.
 
 ## Usuarios de prueba
 
-| Username | Contraseña | Rol |
-|---|---|---|
-| admin | hashed_admin123 | Administrador |
-| ltorres | hashed_torres123 | Médico |
-| cgarcia | hashed_garcia123 | Médico |
-| sflores | hashed_flores123 | Enfermero |
-| rbustani | hashed_rbustani | Enfermero |
-| amartinez | hashed_amtz123 | Enfermero |
-| rramirez | hashed_ramirez123 | Biomédico |
+| Username | Contraseña | Nombre | Rol |
+|---|---|---|---|
+| admin | hashed_admin123 | Admin Sistema | Administrador |
+| cgarcia | hashed_garcia123 | Carlos García | Médico |
+| ltorres | hashed_torres123 | Luis Torres | Médico |
+| amartinez | hashed_amtz123 | Ana Martínez | Enfermero |
+| cvega | hashed_vega123 | Carmen Vega | Enfermero |
+| dcastillo | hashed_castillo123 | Diana Castillo | Enfermero |
+| mlopez | hashed_lopez123 | María López | Enfermero |
+| pmorales | hashed_morales123 | Patricia Morales | Enfermero |
+| rbustani | hashed_rbustani | Roberto Sánchez Bustani | Enfermero |
+| sflores | hashed_flores123 | Sandra Flores | Enfermero |
+| rramirez | hashed_ramirez123 | Roberto Ramírez | Biomédico |
+| jperez | hashed_perez123 | Juan Pérez | Conductor |
 
-> Los enfermeros asignados como responsables de área acceden con su misma cuenta. El sistema detecta automáticamente si el enfermero tiene un área activa bajo su responsabilidad y les muestra la vista de responsable.
+> Los enfermeros asignados como responsables de área acceden con su misma cuenta. El sistema detecta automáticamente si el enfermero tiene un área activa bajo su responsabilidad y les muestra la vista de responsable. El conductor no tiene acceso a la interfaz web, su cuenta solo se usa para ser asignado en traslados externos.
 
 ---
 
