@@ -1,0 +1,7 @@
+{"_id":{"$oid":"6a0a32170670c06b85fcad49"},"id_responsable_area":1,"id_enfermero":1,"id_area":1,"fecha_inicio_responsable_area":{"$date":"2025-01-01T07:00:00Z"},"fecha_fin_responsable_area":{"$date":"2026-04-18T18:19:26.698Z"}}
+{"_id":{"$oid":"6a0a32170670c06b85fcad4a"},"id_responsable_area":3,"id_enfermero":3,"id_area":1,"fecha_inicio_responsable_area":{"$date":"2026-04-18T18:19:26.698Z"},"fecha_fin_responsable_area":null}
+{"_id":{"$oid":"6a0a32170670c06b85fcad4b"},"id_responsable_area":5,"id_enfermero":4,"id_area":3,"fecha_inicio_responsable_area":{"$date":"2026-01-01T07:00:00Z"},"fecha_fin_responsable_area":null}
+{"_id":{"$oid":"6a0a32170670c06b85fcad4c"},"id_responsable_area":6,"id_enfermero":5,"id_area":4,"fecha_inicio_responsable_area":{"$date":"2026-01-01T15:00:00Z"},"fecha_fin_responsable_area":null}
+{"_id":{"$oid":"6a0a32170670c06b85fcad4d"},"id_responsable_area":7,"id_enfermero":6,"id_area":6,"fecha_inicio_responsable_area":{"$date":"2026-01-01T23:00:00Z"},"fecha_fin_responsable_area":null}
+{"_id":{"$oid":"6a0a32170670c06b85fcad4e"},"id_responsable_area":2,"id_enfermero":2,"id_area":2,"fecha_inicio_responsable_area":{"$date":"2025-01-01T15:00:00Z"},"fecha_fin_responsable_area":{"$date":"2026-05-15T19:33:38.577Z"}}
+{"_id":{"$oid":"6a0a32170670c06b85fcad4f"},"id_responsable_area":8,"id_enfermero":2,"id_area":2,"fecha_inicio_responsable_area":{"$date":"2026-05-15T19:33:38.59Z"},"fecha_fin_responsable_area":null}

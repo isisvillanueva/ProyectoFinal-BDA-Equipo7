@@ -1,0 +1,7 @@
+{"_id":{"$oid":"6a0a32170670c06b85fcad50"},"id_enfermero":2,"id_persona":6,"id_especialidad_enfermero":1,"id_turno":2}
+{"_id":{"$oid":"6a0a32170670c06b85fcad51"},"id_enfermero":3,"id_persona":8,"id_especialidad_enfermero":2,"id_turno":2}
+{"_id":{"$oid":"6a0a32170670c06b85fcad52"},"id_enfermero":4,"id_persona":9,"id_especialidad_enfermero":3,"id_turno":1}
+{"_id":{"$oid":"6a0a32170670c06b85fcad53"},"id_enfermero":5,"id_persona":10,"id_especialidad_enfermero":4,"id_turno":2}
+{"_id":{"$oid":"6a0a32170670c06b85fcad54"},"id_enfermero":6,"id_persona":11,"id_especialidad_enfermero":5,"id_turno":3}
+{"_id":{"$oid":"6a0a32170670c06b85fcad55"},"id_enfermero":1,"id_persona":3,"id_especialidad_enfermero":2,"id_turno":1}
+{"_id":{"$oid":"6a0a32170670c06b85fcad56"},"id_enfermero":7,"id_persona":15,"id_especialidad_enfermero":2,"id_turno":2}

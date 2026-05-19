@@ -1,0 +1,4 @@
+{"_id":{"$oid":"6a0a32170670c06b85fcad1c"},"id_tipo_mantenimiento":1,"tipo_mantenimiento":"Preventivo"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad1d"},"id_tipo_mantenimiento":2,"tipo_mantenimiento":"Correctivo"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad1e"},"id_tipo_mantenimiento":3,"tipo_mantenimiento":"Calibración"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad1f"},"id_tipo_mantenimiento":4,"tipo_mantenimiento":"Inspección"}

@@ -1,0 +1,6 @@
+{"_id":{"$oid":"6a0a32170670c06b85fcacff"},"id_area":1,"nombre_area":"Urgencias"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad00"},"id_area":2,"nombre_area":"UCI"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad01"},"id_area":3,"nombre_area":"Quirófano"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad02"},"id_area":4,"nombre_area":"Hospitalización"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad03"},"id_area":5,"nombre_area":"Almacén Biomédico"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad04"},"id_area":6,"nombre_area":"Neonatal"}

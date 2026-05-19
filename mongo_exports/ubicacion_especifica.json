@@ -1,0 +1,7 @@
+{"_id":{"$oid":"6a0a32170670c06b85fcad05"},"id_ubicacion":1,"nombre_ubicacion":"Sala Principal Urgencias","id_area":1}
+{"_id":{"$oid":"6a0a32170670c06b85fcad06"},"id_ubicacion":2,"nombre_ubicacion":"Pasillo Urgencias","id_area":1}
+{"_id":{"$oid":"6a0a32170670c06b85fcad07"},"id_ubicacion":3,"nombre_ubicacion":"Cama UCI-01","id_area":2}
+{"_id":{"$oid":"6a0a32170670c06b85fcad08"},"id_ubicacion":4,"nombre_ubicacion":"Cama UCI-02","id_area":2}
+{"_id":{"$oid":"6a0a32170670c06b85fcad09"},"id_ubicacion":5,"nombre_ubicacion":"Sala Quirófano","id_area":3}
+{"_id":{"$oid":"6a0a32170670c06b85fcad0a"},"id_ubicacion":6,"nombre_ubicacion":"Bodega Biomédica","id_area":5}
+{"_id":{"$oid":"6a0a32170670c06b85fcad0b"},"id_ubicacion":7,"nombre_ubicacion":"Sala Neonatal","id_area":6}

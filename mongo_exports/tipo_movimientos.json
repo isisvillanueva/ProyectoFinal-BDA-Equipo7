@@ -1,0 +1,4 @@
+{"_id":{"$oid":"6a0a32170670c06b85fcad0c"},"id_tipo_movimiento":1,"tipo_movimiento":"Traslado interno"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad0d"},"id_tipo_movimiento":2,"tipo_movimiento":"Reasignación"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad0e"},"id_tipo_movimiento":3,"tipo_movimiento":"Entrega a área"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad0f"},"id_tipo_movimiento":4,"tipo_movimiento":"Retiro de área"}

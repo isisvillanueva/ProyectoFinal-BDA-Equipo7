@@ -1,0 +1,4 @@
+{"_id":{"$oid":"6a0a32170670c06b85fcad20"},"id_resultado_mantenimiento":1,"resultado_mantenimiento":"Exitoso"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad21"},"id_resultado_mantenimiento":2,"resultado_mantenimiento":"Fallido"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad22"},"id_resultado_mantenimiento":3,"resultado_mantenimiento":"Pendiente de revisión"}
+{"_id":{"$oid":"6a0a32170670c06b85fcad23"},"id_resultado_mantenimiento":4,"resultado_mantenimiento":"Requiere reemplazo"}

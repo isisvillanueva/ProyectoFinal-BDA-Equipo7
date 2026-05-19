@@ -1,0 +1,6 @@
+{"_id":{"$oid":"6a0a32170670c06b85fcacf5"},"id_estado_equipo":1,"estado_equipo":"Disponible"}
+{"_id":{"$oid":"6a0a32170670c06b85fcacf6"},"id_estado_equipo":2,"estado_equipo":"En uso"}
+{"_id":{"$oid":"6a0a32170670c06b85fcacf7"},"id_estado_equipo":3,"estado_equipo":"En mantenimiento"}
+{"_id":{"$oid":"6a0a32170670c06b85fcacf8"},"id_estado_equipo":4,"estado_equipo":"Fuera de servicio"}
+{"_id":{"$oid":"6a0a32170670c06b85fcacf9"},"id_estado_equipo":5,"estado_equipo":"Retirado"}
+{"_id":{"$oid":"6a0a32170670c06b85fcacfa"},"id_estado_equipo":6,"estado_equipo":"En préstamo"}
