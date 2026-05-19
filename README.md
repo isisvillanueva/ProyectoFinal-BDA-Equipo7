@@ -159,25 +159,40 @@ Usa la URL pública generada en la configuración de la APK y en Traccar Client.
 
 ```
 ProyectoFinal-BDA-Equipo7/
-├── app.py                  # Aplicación Flask principal
-├── migrate_to_mongo.py     # Migración PostgreSQL → MongoDB
-├── beacon_scanner.py       # Escáner BLE para beacons Bluetooth
-├── hospital_db.sql         # Esquema completo PostgreSQL con datos de prueba
-├── requirements.txt        # Dependencias Python
-├── run.sh                  # Script de arranque
+├── app.py                      # Aplicación Flask principal
+├── migrate_to_mongo.py         # Migración PostgreSQL → MongoDB
+├── beacon_scanner.py           # Escáner BLE para beacons Bluetooth
+├── hospital_db.sql             # Esquema completo PostgreSQL con datos de prueba
+├── requirements.txt            # Dependencias Python
+├── run.sh                      # Script de arranque
+│
+├── sql/                        # Scripts SQL separados por componente
+│   ├── AIR_ddlndexs.sql        # DDL e índices
+│   ├── AIR_inserts_semilla.sql # Datos de prueba
+│   ├── AIR_storedProcedures.sql# Stored procedures
+│   ├── AIR_triggers.sql        # Triggers y funciones de trigger
+│   ├── AIR_views.sql           # Vistas analíticas
+│   ├── AIR_views_queries.sql   # Consultas de prueba sobre vistas
+│   ├── AIR_querysStoredP.sql   # Consultas de prueba de stored procedures
+│   └── AIR_pruebasIntegridad.sql # Pruebas de integridad referencial
+│
+├── DiagramaFinalE7.drawio      # Diagrama entidad-relación final
+├── Diagrama_preliminarE7.drawio# Diagrama ER preliminar
+├── E7_NORMALIZACION_FINAL.xlsx # Documento de normalización (1FN, 2FN, 3FN)
+│
 ├── templates/
-│   ├── admin.html          # Panel Administrador
-│   ├── medico.html         # Panel Médico
-│   ├── enfermero.html      # Panel Enfermero
-│   ├── biomedico.html      # Panel Biomédico
-│   ├── responsable.html    # Panel Responsable de área
-│   ├── admin_iot.html      # Panel IoT
-│   ├── index.html          # Portal público
-│   ├── login.html          # Pantalla de acceso
-│   ├── nfc_login.html      # Login por NFC
-│   ├── nfc_scan.html       # Escaneo NFC
-│   ├── error_permisos.html # Página de error de acceso
-│   └── macros.html         # Componentes Jinja2 reutilizables
+│   ├── admin.html              # Panel Administrador
+│   ├── medico.html             # Panel Médico
+│   ├── enfermero.html          # Panel Enfermero
+│   ├── biomedico.html          # Panel Biomédico
+│   ├── responsable.html        # Panel Responsable de área
+│   ├── admin_iot.html          # Panel IoT
+│   ├── index.html              # Portal público
+│   ├── login.html              # Pantalla de acceso
+│   ├── nfc_login.html          # Login por NFC
+│   ├── nfc_scan.html           # Escaneo NFC
+│   ├── error_permisos.html     # Página de error de acceso
+│   └── macros.html             # Componentes Jinja2 reutilizables
 └── static/
     ├── css/
     └── js/
