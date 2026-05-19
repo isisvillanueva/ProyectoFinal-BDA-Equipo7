@@ -9,3 +9,12 @@ psycopg2-binary==2.9.10
 
 # Driver MongoDB
 pymongo==4.17.0
+
+# Tokens firmados para autenticación de APIs móviles e IoT
+itsdangerous==2.2.0
+
+# Cliente HTTP asíncrono para beacon_scanner.py
+aiohttp==3.13.5
+
+# Escáner Bluetooth BLE para beacon_scanner.py
+bleak==3.0.2
