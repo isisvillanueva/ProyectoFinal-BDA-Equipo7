@@ -225,6 +225,14 @@ ProyectoFinal-BDA-Equipo7/
 
 15 colecciones replicadas desde PostgreSQL más la colección `event_logs` para eventos IoT en tiempo real. Los datos se sincronizan con `migrate_to_mongo.py` y se complementan con escrituras en tiempo real desde los endpoints IoT de Flask.
 
+### Arquitectura de persistencia dual
+
+PostgreSQL actúa como la fuente de verdad transaccional. Todo lo que implica registrar, modificar o eliminar datos (equipos, movimientos, mantenimientos) pasa por PostgreSQL, porque garantiza integridad referencial, validaciones automáticas mediante triggers y consistencia en operaciones concurrentes.
+
+MongoDB actúa como el motor analítico. Una vez que los datos existen en PostgreSQL, se sincronizan a MongoDB para ejecutar sobre ellos consultas de agregación (totales, rankings, tendencias por período) que alimentan las gráficas del sistema. Esta separación evita que las consultas analíticas compitan con las operaciones transaccionales y ralenticen el sistema.
+
+Los eventos IoT (NFC, GPS, beacon) son la única excepción: se escriben simultáneamente en ambas bases de datos. PostgreSQL los persiste para trazabilidad transaccional y MongoDB los recibe en `event_logs` para análisis en tiempo real desde el panel IoT.
+
 ---
 
 ## Aplicación móvil (APK Flutter)
